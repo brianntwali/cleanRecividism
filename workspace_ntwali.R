@@ -297,7 +297,6 @@ length(unique_IDs)
 list_of_dfs <- lapply(unique_IDs, populate_IDs, checking_date = '01012008', ending_date = '01012021')
 final_df <- Reduce(rbind, list_of_dfs)
 
-View(final_df)
 
 # target_df_2 <- data.frame(ID = unique_IDs_2, stringsAsFactors = FALSE)
 # 
