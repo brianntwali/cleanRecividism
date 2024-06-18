@@ -1,5 +1,6 @@
 # working R file for cleaning PA DOC data by BRIAN NTWALI
 
+library(parallel)
 library("data.table")
 library("readxl")
 library("dplyr")
@@ -86,11 +87,14 @@ compare_dates <- function(date_one, date_two) {
 # compare_dates('01082020', '02012028')
 # compare_dates('12082020', '02012028')
 
+# Precompute sorted data tables
+cc_counts_dt_sorted_desc <- setorder(copy(cc_counts_dt), -status_date)
+cc_counts_dt_sorted_asc <- setorder(copy(cc_counts_dt), status_date)
+
 get_prev_status_date <- function(ID, max_date) {
-  temp_dt <- setorder(cc_counts_dt, -status_date) 
   max_date <- as.Date(strptime(max_date, format = '%m%d%Y'))
   # select move records with associated parameters
-  status_input <- temp_dt[(control_number == ID & status_date < max_date), status_date][1]
+  status_input <- cc_counts_dt_sorted_desc[(control_number == ID & status_date < max_date), status_date][1]
   
   if (anyNA(status_input)) { 
     status_input <- NULL 
@@ -103,14 +107,13 @@ get_prev_status_date <- function(ID, max_date) {
 
 
 # Tests for function
-print(get_prev_status_date('004037', '10022012'))
+# print(get_prev_status_date('004037', '10022012'))
 # print(get_prev_status_date('004037', '05032011'))
 
 get_next_status_date <- function(ID, min_date) {
-  temp_dt <- setorder(cc_counts_dt, status_date)
   min_date <- as.Date(strptime(min_date, format = '%m%d%Y'))
   # select move records with associated parameters
-  status_input <- temp_dt[(control_number == ID & status_date > min_date), status_date][1]
+  status_input <- cc_counts_dt_sorted_asc[(control_number == ID & status_date > min_date), status_date][1]
   
   if (anyNA(status_input)) { 
     status_input <- NULL 
@@ -171,7 +174,7 @@ populate_IDs <- function(ID, check_date, end_date) {
   
   # Convert checking_date and ending_date to Date objects
   
-  print(paste0('working on ID: ', ID))
+  # print(paste0('working on ID: ', ID))
   
   # print(paste0('The ending date is: ', end_date))
   
@@ -246,17 +249,26 @@ unique_IDs_2 <- na.omit(unique_IDs_2)
 length(unique_IDs_2)
 
 
-# date_sequence_2 <- seq(as.Date("2009-01-01"), as.Date("2013-01-01"), by = "day")
-# 
-# # Format the dates as MMDDYYYY
-# formatted_dates_2 <- format(date_sequence_2, "%m%d%Y")
-# 
-# # There are 730 days 
-# length(formatted_dates_2)
+# apply
+#  user  system elapsed 
+# 14.847   0.650  15.517 (Jun 18th 2:50 pm)
+# user  system elapsed 
+# 12.180   0.558  12.780 (Jun 18th 3:00 pm)
+system.time({
+  list_of_dts_2 <- lapply(unique_IDs_2, populate_IDs, check_date = '01012008', end_date = '01012021')
+  final_dt_2 <- Reduce(rbind, list_of_dfs_2)
+})
 
-system.time(list_of_dts_2 <- lapply(unique_IDs_2, populate_IDs, check_date = '01012009', end_date = '01012013'))
-final_dt_2 <- Reduce(rbind, list_of_dfs_2)
-
+# mclapply
+#  user  system elapsed (Jun 18th 2:50 pm)
+# 16.442   0.867   9.109 
+# user  system elapsed 
+# 13.912   0.761   7.721 (Jun 18th 3:00 pm)
+numberOfCores <- detectCores()
+system.time({
+  list_of_dts_2 <- mclapply(unique_IDs_2, populate_IDs, check_date = '01012008', end_date = '01012021')
+  final_dt_2 <- Reduce(rbind, list_of_dfs_2)
+})
 
 View(final_dt_2)
 
@@ -277,19 +289,4 @@ list_of_dfs <- lapply(unique_IDs, populate_IDs, check_date = '01012008', end_dat
 final_df <- Reduce(rbind, list_of_dfs)
 
 
-# target_df_2 <- data.frame(ID = unique_IDs_2, stringsAsFactors = FALSE)
-# 
-# # Add columns for each date
-# for (date in formatted_dates_2) {
-#   target_df_2[[date]] <- NA # Initialize each column with NA 
-# }
-# 
-# # Set row names to IDs for easier reference
-# row.names(target_df_2) <- target_df_2$ID
-# 
-# target_df_2 <- populate_IDs(target_df_2, unique_IDs_2, '01012009', '01012013')
-# 
-# View(target_df_2)
-# 
-# 
 # write.csv(target_df_2, 'attemp1.csv')
