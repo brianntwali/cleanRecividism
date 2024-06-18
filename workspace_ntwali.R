@@ -163,21 +163,15 @@ check_status_and_ID <- function(ID, check_date, mov_ID) {
 
 # Main function
 
-populate_IDs <- function(ID, checking_date, ending_date) {
+populate_IDs <- function(ID, check_date, end_date) {
   
-  created_dt <- data.table(ID = ID, stringsAsFactors = FALSE)
+  created_df <- data.frame(ID = ID, stringsAsFactors = FALSE)
   
-  row.names(created_dt) <- created_dt$ID
+  row.names(created_df) <- created_df$ID
+  
+  # Convert checking_date and ending_date to Date objects
   
   print(paste0('working on ID: ', ID))
-  
-  # checking_date should be '01012008'
-  check_date <- checking_date
-  
-  # print(paste0('The checking date is: ', check_date))
-  
-  # ending_date should be '01012021'
-  end_date <- ending_date 
   
   # print(paste0('The ending date is: ', end_date))
   
@@ -201,11 +195,12 @@ populate_IDs <- function(ID, checking_date, ending_date) {
       # print(paste0('There is a previous status date. The current location is: ', current_loc))
     }
     
+
     # To fill remaining days with appropriate code after an ID has no more 
     # remaining records after 'check_date'
     if(is.null(get_next_status_date(ID, check_date))) {
       while (compare_dates(end_date, check_date)) {
-        created_dt[ID, check_date] <- current_loc
+        created_df[ID, check_date] <- current_loc
         check_date <- increment_date(check_date)
         # print(paste0('There is no next status date. The current date is: ', check_date))
       }
@@ -213,7 +208,7 @@ populate_IDs <- function(ID, checking_date, ending_date) {
     
     else {
       while (compare_dates(next_status_date, check_date) && compare_dates(end_date, check_date)) {
-        created_dt[ID, check_date] <- current_loc
+        created_df[ID, check_date] <- current_loc
         check_date <- increment_date(check_date)
         # print(paste0('There is a next status date. The current date is: ', check_date))
       }
@@ -226,12 +221,12 @@ populate_IDs <- function(ID, checking_date, ending_date) {
       # update next_status_date with get_next_status_date( )
       next_status_date <- get_next_status_date(ID, check_date)
       # print(paste0('Updating the next status date... It is now: ', next_status_date))
-      
+    
     }
   }
   # print(paste0('Final previous date for ID ', ID, ' is ', prev_status_date))
   
-  return(as.data.table(created_dt))
+  return(created_df)
 }
 
 
@@ -259,11 +254,11 @@ length(unique_IDs_2)
 # # There are 730 days 
 # length(formatted_dates_2)
 
+system.time(list_of_dts_2 <- lapply(unique_IDs_2, populate_IDs, check_date = '01012009', end_date = '01012013'))
+final_dt_2 <- Reduce(rbind, list_of_dfs_2)
 
-list_of_dfs_2 <- lapply(unique_IDs_2, populate_IDs, checking_date = '01012009', ending_date = '01012013')
-final_df_2 <- Reduce(rbind, list_of_dfs)
 
-View(final_df_2)
+View(final_dt_2)
 
 
 # Creating target dataframe -----------------------------------------------
@@ -278,7 +273,7 @@ unique_IDs <- na.omit(unique_IDs)
 # There are 80408 unique IDs
 length(unique_IDs)
 
-list_of_dfs <- lapply(unique_IDs, populate_IDs, checking_date = '01012008', ending_date = '01012021')
+list_of_dfs <- lapply(unique_IDs, populate_IDs, check_date = '01012008', end_date = '01012021')
 final_df <- Reduce(rbind, list_of_dfs)
 
 
