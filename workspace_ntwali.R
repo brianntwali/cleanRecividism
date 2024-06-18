@@ -1,7 +1,5 @@
 # working R file for cleaning PA DOC data by BRIAN NTWALI
 
-install.packages('data.table')
-
 library("data.table")
 library("readxl")
 library("dplyr")
@@ -31,8 +29,6 @@ movements <- read.csv("/Volumes/Untitled/PA DOC/2021-22_Silveus_deidentified_pri
 # Change column name; BRIAN (June 6th 2024):this has been changed so this instruction is no longer necessary 6/3/2024
 #movements <- movements %>% rename("control_number" = "ï..control_number" )
 
-names(movements)
-
 demographics <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx"),sheet = "demographics")
 
 ccc_cohort <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx"),sheet = "ccc_cohort")
@@ -44,18 +40,18 @@ sentencing <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentifie
 lsir <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx"),sheet = "lsir")
 
 
-# Select columns and create month and year of arrival variables.
+# Select columns and drop duplicates by control number status code, and date. 
+# Sometimes there are multiple entry records if the resident is enrolled in multiple programs.
+
 cc_counts_df <- ccc_moves %>% 
   # BRIAN (June 6th 2024): added 'movement_id'
-  select(c('control_number', 'bed_date', 'status_code', 'status_description','status_date', 'location_to_code', 'location_from_code', 'movement_id'))
-
-# Drop duplicates by control number status code, and date. 
-# Sometimes there are multiple entry records if the resident is enrolled in multiple programs.
-cc_counts_df <- cc_counts_df %>% 
+  select(c('control_number', 'bed_date', 'status_code', 'status_description','status_date', 'location_to_code', 'location_from_code', 'movement_id')) %>% 
   distinct(control_number, status_code, status_date, location_from_code, .keep_all = TRUE) %>% 
   # BRIAN (June 6th 2024): check for duplicate movement IDs
   distinct(movement_id, .keep_all = TRUE)
 
+# transform into data.table for efficiency
+cc_counts_dt <- as.data.table(cc_counts_df)
 
 
 # Creating Functions ------------------------------------------------------
@@ -91,15 +87,12 @@ compare_dates <- function(date_one, date_two) {
 # compare_dates('12082020', '02012028')
 
 get_prev_status_date <- function(ID, max_date) {
-  temp_df <- cc_counts_df 
+  temp_dt <- setorder(cc_counts_dt, -status_date) 
   max_date <- as.Date(strptime(max_date, format = '%m%d%Y'))
   # select move records with associated parameters
-  status_input <- temp_df %>%
-    filter(control_number == ID & max_date > status_date) %>%
-    arrange(desc(status_date)) %>%
-    slice(1) %>%
-    pull(status_date)
-  if (length(status_input) == 0) { 
+  status_input <- temp_dt[(control_number == ID & status_date < max_date), status_date][1]
+  
+  if (anyNA(status_input)) { 
     status_input <- NULL 
   } 
   else {
@@ -110,19 +103,16 @@ get_prev_status_date <- function(ID, max_date) {
 
 
 # Tests for function
-# print(get_prev_status_date('004037', '10032012'))
+print(get_prev_status_date('004037', '10022012'))
 # print(get_prev_status_date('004037', '05032011'))
 
 get_next_status_date <- function(ID, min_date) {
-  temp_df <- cc_counts_df 
+  temp_dt <- setorder(cc_counts_dt, status_date)
   min_date <- as.Date(strptime(min_date, format = '%m%d%Y'))
   # select move records with associated parameters
-  status_input <- temp_df %>%
-    filter(control_number == ID & status_date > min_date) %>%
-    arrange(status_date) %>%
-    slice(1) %>%
-    pull(status_date)
-  if (length(status_input) == 0) { 
+  status_input <- temp_dt[(control_number == ID & status_date > min_date), status_date][1]
+  
+  if (anyNA(status_input)) { 
     status_input <- NULL 
   } 
   
@@ -138,13 +128,9 @@ get_next_status_date <- function(ID, min_date) {
 # get_next_status_date('003134', '11162010')
 
 check_mov_IDs <- function(ID, check_date) {
-  temp_df <- cc_counts_df
+  temp_dt <- setorder(cc_counts_dt, -movement_id)
   # creating a vector of the associated movement IDs
-  mov_IDs <- temp_df %>%
-    filter(control_number == ID & status_date == as.Date(strptime(check_date, format = '%m%d%Y'))) %>%
-    select(movement_id) %>%
-    arrange(desc(movement_id)) %>%
-    pull(movement_id)
+  mov_IDs <- temp_dt[(control_number == ID & status_date == as.Date(strptime(check_date, format = '%m%d%Y'))), movement_id]
 }
 
 # Test for function
@@ -153,11 +139,9 @@ check_mov_IDs <- function(ID, check_date) {
 
 
 check_status_and_ID <- function(ID, check_date, mov_ID) {
-  temp_df <- cc_counts_df 
+  temp_dt <- cc_counts_dt
   # select status of the move record with associated parameters
-  status_input <- temp_df %>%
-    filter(control_number == ID & status_date == as.Date(strptime(check_date, format = '%m%d%Y')) & movement_id == mov_ID) %>%
-    pull(status_code)
+  status_input <- temp_dt[(control_number == ID & status_date  == as.Date(strptime(check_date, format = '%m%d%Y')) & movement_id == mov_ID), status_code][1]
   # the resident is no longer in a CCC/CCF (dead, in correctional facility, escaped or paroled)
   if(status_input %in% c('ESCP', 'DECN', 'PTST', 'DC2P', 'SENT', 'DECX', 'DECA', 'DECS', 'PTST', 'TRSC')) {
     loc_code <- -1
@@ -168,24 +152,22 @@ check_status_and_ID <- function(ID, check_date, mov_ID) {
   }
   # all other codes do not result in a change of residence
   else {
-    loc_code <- temp_df %>%
-      filter(control_number == ID & status_date == as.Date(strptime(check_date, format = '%m%d%Y')) & movement_id == mov_ID) %>%
-      pull(location_from_code)
+    loc_code <- temp_dt[(control_number == ID & status_date  == as.Date(strptime(check_date, format = '%m%d%Y')) & movement_id == mov_ID), location_from_code][1]
   }
 }
 
 
 # Test for function
 # print(check_status_and_ID('003636', '10042012', '753517'))
-
+# print(check_status_and_ID('003636', '12262012', '767244'))
 
 # Main function
 
 populate_IDs <- function(ID, checking_date, ending_date) {
   
-  created_df <- data.table(ID = ID, stringsAsFactors = FALSE)
+  created_dt <- data.table(ID = ID, stringsAsFactors = FALSE)
   
-  row.names(created_df) <- created_df$ID
+  row.names(created_dt) <- created_dt$ID
   
   print(paste0('working on ID: ', ID))
   
@@ -223,7 +205,7 @@ populate_IDs <- function(ID, checking_date, ending_date) {
     # remaining records after 'check_date'
     if(is.null(get_next_status_date(ID, check_date))) {
       while (compare_dates(end_date, check_date)) {
-        created_df[ID, check_date] <- current_loc
+        created_dt[ID, check_date] <- current_loc
         check_date <- increment_date(check_date)
         # print(paste0('There is no next status date. The current date is: ', check_date))
       }
@@ -231,7 +213,7 @@ populate_IDs <- function(ID, checking_date, ending_date) {
     
     else {
       while (compare_dates(next_status_date, check_date) && compare_dates(end_date, check_date)) {
-        created_df[ID, check_date] <- current_loc
+        created_dt[ID, check_date] <- current_loc
         check_date <- increment_date(check_date)
         # print(paste0('There is a next status date. The current date is: ', check_date))
       }
@@ -249,7 +231,7 @@ populate_IDs <- function(ID, checking_date, ending_date) {
   }
   # print(paste0('Final previous date for ID ', ID, ' is ', prev_status_date))
   
-  return(as.data.table(created_df))
+  return(as.data.table(created_dt))
 }
 
 
