@@ -125,15 +125,16 @@ get_next_status_date <- function(ID, min_date) {
   return(status_input)
 }
 
-
 # Tests for function
 # get_next_status_date('003134', '06212010')
 # get_next_status_date('003134', '11162010')
 
+# Precompute sorted data tables
+cc_counts_dt_sorted_id_desc <- setorder(copy(cc_counts_dt), -movement_id)
+
 check_mov_IDs <- function(ID, check_date) {
-  temp_dt <- setorder(cc_counts_dt, -movement_id)
   # creating a vector of the associated movement IDs
-  mov_IDs <- temp_dt[(control_number == ID & status_date == as.Date(strptime(check_date, format = '%m%d%Y'))), movement_id]
+  mov_IDs <- cc_counts_dt_sorted_id_desc[(control_number == ID & status_date == as.Date(strptime(check_date, format = '%m%d%Y'))), movement_id]
 }
 
 # Test for function
@@ -176,15 +177,9 @@ populate_IDs <- function(ID, check_date, end_date) {
   
   # print(paste0('working on ID: ', ID))
   
-  # print(paste0('The ending date is: ', end_date))
-  
   prev_status_date <- get_prev_status_date(ID, check_date)
   
-  # print(paste0('The previous status date is: ', prev_status_date))
-  
   next_status_date <- get_next_status_date(ID, check_date)
-  
-  # print(paste0('The next status date is: ', next_status_date))
   
   # Updating center 
   
@@ -195,7 +190,6 @@ populate_IDs <- function(ID, check_date, end_date) {
     if (!is.null(prev_status_date)) {
       check_mov_IDs_res <- check_mov_IDs(ID, prev_status_date)
       current_loc <- check_status_and_ID(ID, prev_status_date, check_mov_IDs_res[1])
-      # print(paste0('There is a previous status date. The current location is: ', current_loc))
     }
     
 
@@ -205,7 +199,6 @@ populate_IDs <- function(ID, check_date, end_date) {
       while (compare_dates(end_date, check_date)) {
         created_df[ID, check_date] <- current_loc
         check_date <- increment_date(check_date)
-        # print(paste0('There is no next status date. The current date is: ', check_date))
       }
     }
     
@@ -213,21 +206,15 @@ populate_IDs <- function(ID, check_date, end_date) {
       while (compare_dates(next_status_date, check_date) && compare_dates(end_date, check_date)) {
         created_df[ID, check_date] <- current_loc
         check_date <- increment_date(check_date)
-        # print(paste0('There is a next status date. The current date is: ', check_date))
       }
       
       # update prev_status_date to check_date 
       prev_status_date <- check_date
-      # print(paste0('Updating the previous status date... It is now: ', prev_status_date))
-      
       
       # update next_status_date with get_next_status_date( )
       next_status_date <- get_next_status_date(ID, check_date)
-      # print(paste0('Updating the next status date... It is now: ', next_status_date))
-    
     }
   }
-  # print(paste0('Final previous date for ID ', ID, ' is ', prev_status_date))
   
   return(created_df)
 }
