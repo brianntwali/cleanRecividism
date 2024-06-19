@@ -1,6 +1,6 @@
 # working R file for cleaning PA DOC data by BRIAN NTWALI
 
-library(parallel)
+library("parallel")
 library("data.table")
 library("readxl")
 library("dplyr")
@@ -9,13 +9,23 @@ library("lubridate")
 
 library("fastDummies")
 library("ggplot2")
-library(readr)
+library("readr")
 
+
+
+# Test change by NAS 6/19/24 ----------------------------------------------
+
+
+
+# Test change by NAS 6/19/24-----------------------------------------------
 
 # Loading data ------------------------------------------------------------
 
 # Corrected file path with proper separator
-encripted_drive_path <- "/Volumes/Untitled/PA DOC/"
+# Brian's Path
+#encripted_drive_path <- "/Volumes/Untitled/PA DOC/"
+# Neil's PC
+encripted_drive_path <- "E:/PA DOC/"
 
 # Verify the correct file path
 file_path <- paste0(encripted_drive_path, "2021-22_Silveus_deidentified_prison_spells.csv")
@@ -25,7 +35,7 @@ print(file_path)  # This should print the full file path
 movements <- read.csv(file_path)
 
 
-movements <- read.csv("/Volumes/Untitled/PA DOC/2021-22_Silveus_deidentified_prison_spells.csv")
+#movements <- read.csv("/Volumes/Untitled/PA DOC/2021-22_Silveus_deidentified_prison_spells.csv")
 
 # Change column name; BRIAN (June 6th 2024):this has been changed so this instruction is no longer necessary 6/3/2024
 #movements <- movements %>% rename("control_number" = "ï..control_number" )
@@ -243,7 +253,7 @@ length(unique_IDs_2)
 # 12.180   0.558  12.780 (Jun 18th 3:00 pm)
 system.time({
   list_of_dts_2 <- lapply(unique_IDs_2, populate_IDs, check_date = '01012008', end_date = '01012021')
-  final_dt_2 <- Reduce(rbind, list_of_dfs_2)
+  final_dt_2 <- Reduce(rbind, list_of_dts_2)
 })
 
 # mclapply
@@ -254,26 +264,26 @@ system.time({
 numberOfCores <- detectCores()
 system.time({
   list_of_dts_2 <- mclapply(unique_IDs_2, populate_IDs, check_date = '01012008', end_date = '01012021')
-  final_dt_2 <- Reduce(rbind, list_of_dfs_2)
+  final_dt_2 <- Reduce(rbind, list_of_dts_2)
 })
 
 View(final_dt_2)
-
-
-# Creating target dataframe -----------------------------------------------
-
-unique_IDs <- cc_counts_df %>%
-  distinct(control_number) %>%
-  arrange(desc(control_number)) %>%
-  pull(control_number)
-
-unique_IDs <- na.omit(unique_IDs)
-
-# There are 80408 unique IDs
-length(unique_IDs)
-
-list_of_dfs <- lapply(unique_IDs, populate_IDs, check_date = '01012008', end_date = '01012021')
-final_df <- Reduce(rbind, list_of_dfs)
-
-
-# write.csv(target_df_2, 'attemp1.csv')
+# 
+# 
+# # Creating target dataframe -----------------------------------------------
+# 
+# unique_IDs <- cc_counts_df %>%
+#   distinct(control_number) %>%
+#   arrange(desc(control_number)) %>%
+#   pull(control_number)
+# 
+# unique_IDs <- na.omit(unique_IDs)
+# 
+# # There are 80408 unique IDs
+# length(unique_IDs)
+# 
+# list_of_dfs <- lapply(unique_IDs, populate_IDs, check_date = '01012008', end_date = '01012021')
+# final_df <- Reduce(rbind, list_of_dfs)
+# 
+# 
+# # write.csv(target_df_2, 'attemp1.csv')
