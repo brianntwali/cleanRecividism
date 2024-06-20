@@ -1,0 +1,109 @@
+---
+title: "Halfway Houses and Pay-For-Performance Contracts"
+#"Need to think of snappier title"
+output: 
+  revealjs::revealjs_presentation:
+    theme: sky
+    transition: slide
+    css: style.css  # Include custom CSS
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+# R Markdown
+
+This is an R Markdown presentation. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document.
+
+This slide deck is to organize findings, figures, and tables. There will be a seperate slide deck for presentations that will likely pull from figures and tables here
+
+**Below are examples of various slide types**
+
+## Slide with Bullets
+
+- Bullet 1
+- Bullet 2
+- Bullet 3
+
+## Slide with R Output
+
+```{r cars, echo = TRUE}
+summary(cars)
+```
+
+## Slide with Plot
+
+```{r pressure}
+plot(pressure)
+```
+
+# Introduction
+
+# Background
+
+## 
+Figure documenting number of releases to CCCs, CCFs, and direct release. Time series if possible
+
+##
+Table comparing 3 year recidivism rates for halfway houses and direct release over sample period. Make the point that halfway houses often associated with worse outcomes. Cite popular press and Lee 2022
+
+# Parallel trends
+Figure showing time series of 3 year recidivism rate for 2008-2017 separately for CCCs and CCFs
+
+- Highlight 2013, the year of the policy
+- Cannot calculate 3 year recidivism rate after 2017 because data stops at 2017
+
+# Summary Stats
+Summary stats table for all residents released from halfway houses. 
+
+- Split by CCC and CCF. 
+- Race, offense by category (exactly how is TBD), age a release, LSI-R, years in PA DOC (will need to construct from movement file. Difference between year first shows up in movement file and year released from halfway house)
+- **Will give insight into how CCC and CCF resident's are different**. Would be nice if they are not. If they are, lean on parallel trends assumption  
+
+# Event study plots: Individual outcomes
+Below plots for individual level regs
+
+- Try leads/lags at quarterly level or 1/2 year level
+
+## Recidivism
+
+## Employment
+
+## Time to recommitment
+Restrict to indiviuals who are eventually recommitted to PA DOC.
+
+# Event study plots: Facility level outcomes
+Below are plots for facility level regs
+
+- Try leads/lags at quarterly level or 1/2 year level
+
+## Incoming LSI-R averages
+
+## Incoming offense type
+
+
+# DID table
+Main findings. 
+
+Repeat above outcomes in a single table or split into two tables if too crowded.
+
+# Placebo tests
+Rerun regs with treatment year before and after 2013.
+
+# Heterogeneity
+
+## Race
+
+## Age
+
+## Offence
+
+# Mechanisms
+Need to figure out what facilities did to change if anything. 
+
+How to test? ?
+
