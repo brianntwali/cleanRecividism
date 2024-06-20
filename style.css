@@ -1,0 +1,9 @@
+/* Left justify content */
+.reveal section {
+    text-align: left;
+}
+
+/* Center titles */
+.reveal section h1, .reveal section h2, .reveal section h3, .reveal section h4, .reveal section h5, .reveal section h6 {
+    text-align: center;
+}
