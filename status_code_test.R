@@ -1,3 +1,5 @@
+install.packages("reshape2")
+library("reshape2")
 library("data.table")
 library("readxl")
 library("dplyr")
@@ -11,7 +13,7 @@ library("readr")
 
 # Loading data ------------------------------------------------------------
 
-# Corrected file path with proper separator
+# Corrected file path with print(proper separator
 encripted_drive_path <- "/Volumes/Untitled/PA DOC/"
 
 # Verify the correct file path
@@ -27,7 +29,6 @@ movements <- read.csv("/Volumes/Untitled/PA DOC/2021-22_Silveus_deidentified_pri
 # Change column name; BRIAN (June 6th 2024):this has been changed so this instruction is no longer necessary 6/3/2024
 #movements <- movements %>% rename("control_number" = "ï..control_number" )
 
-names(movements)
 
 demographics <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx"),sheet = "demographics")
 
@@ -54,121 +55,109 @@ cc_counts_df <- ccc_moves %>%
   # BRIAN (June 6th 2024): check for duplicate movement IDs
   distinct(movement_id, .keep_all = TRUE)
 
-
+# General functions -------------------------------------------------------
 
 
 # If control number (resident) has that status code then keep it, then, for each resident, it gives a listing of their "total history"
-view_status_case <- function(df_name, status_code_str){
+isolate_status_case <- function(df_name, status_code_str){
   temp_df <- df_name
   temp_df$temp <- ifelse(temp_df$status_code == status_code_str, 1, 0)
   temp_df <- temp_df %>% group_by(control_number) %>% mutate(case = max(temp))
-  result_df <- temp_df %>% filter(case == 1) %>% arrange(control_number, ymd(status_date)) %>% select(c('control_number', 'status_code', 'status_description', 'bed_date', 'status_date', 'location_from_code', 'location_to_code'))
-  View(result_df)
+  result_df <- temp_df %>% filter(case == 1) %>% arrange(control_number, ymd(status_date)) %>% select(c('control_number', 'status_code', 'movement_id', 'bed_date', 'status_date', 'location_from_code'))
   return(result_df)
 }
 
-
-get_status_code <- function(ID, check_date, mov_ID) {
-  temp_dt <- as.data.table(cc_counts_df)
-  # select status of the move record with associated parameters
-  status_input <- temp_dt[(control_number == ID & status_date  == as.Date(strptime(check_date, format = '%m%d%Y')) & movement_id == mov_ID), status_code][1]
-  return(status_input)
+get_dt_input <- function(input_status_code) {
+  dt_input <- head(isolate_status_case(cc_counts_df, input_status_code), 10000)
+  dt_input <- setDT(dt_input)[order(control_number, status_date, movement_id)]
+  suppressWarnings(
+    dt_input$bed_date <- dt_input$bed_date %>% 
+      as.numeric() %>%  
+      as.Date(origin=as.Date("1899-12-30"))
+  )
+  return(dt_input)
 }
 
-# Precompute sorted data tables
-cc_counts_df$status_date <- as.Date(cc_counts_df$status_date, format = "%Y-%m-%d")
-cc_counts_dt_2 <- as.data.table(cc_counts_df)
-cc_counts_dt_sorted_desc <- setorder(copy(cc_counts_dt_2), -status_date)
-cc_counts_dt_sorted_asc <- setorder(copy(cc_counts_dt_2), status_date)
-cc_counts_dt_sorted_id_desc <- setorder(copy(cc_counts_dt_2), -movement_id)
-
-
-check_mov_IDs <- function(ID, check_date) {
-  # creating a vector of the associated movement IDs
-  mov_IDs <- cc_counts_dt_sorted_id_desc[(control_number == ID & status_date == as.Date(strptime(check_date, format = '%m%d%Y'))), movement_id]
+refine_dt_per_ID  <- function(unique_id, dt_input, status_input) {
+  dt_input <- dt_input[(control_number == unique_id)]
+  dt_input <- dt_input[, prev_code := paste0(shift(status_code, type = "lag"))][, next_code := paste0(shift(status_code, type = "lead"))][, duration_days := as.numeric(shift(status_date, type = "lead") - status_date) / 86400][, center_changed := ifelse(shift(location_from_code, type = "lag") == shift(location_from_code, type = "lead"), "no", "yes")][, bed_date_changed := ifelse(shift(bed_date, type = "lag") == shift(bed_date, type = "lead"), "no", "yes")]
+  dt_input <- dt_input[(status_code == status_input)]
+  return(dt_input)
 }
 
-get_prev_status_date <- function(ID, max_date) {
-  max_date <- as.Date(strptime(max_date, format = '%m%d%Y'))
-  # select move records with associated parameters
-  status_input <- cc_counts_dt_sorted_desc[(control_number == ID & status_date < max_date), status_date][1]
-  
-  if (anyNA(status_input)) { 
-    status_input <- NA 
-  } else {
-    status_input <- format(status_input, '%m%d%Y')
-  }
-  
-  # print(paste0('The previous status date is ', status_input))
-  return(status_input)
+get_unique_IDs <- function(dt_input) {
+  dt_input <- dt_input[order(-control_number)]
+  unique_IDs_code <- dt_input[, unique(control_number)]
+  unique_IDs_code <- na.omit(unique_IDs_code)
+  return(unique_IDs_code)
 }
 
-get_prev_status_code <- function(ID, check_date) {
-  check_date <- format(check_date, '%m%d%Y')
-  prev_status_date <- get_prev_status_date(ID, check_date)
+create_final_code_dt <- function(input_code) {
   
-  # Return NA if prev_status_date is NA
-  if (is.na(prev_status_date)) {
-    return(NA)
-  }
+  input_dt <- get_dt_input(input_code)
+  unique_IDs_code <- get_unique_IDs(input_dt)
+  list_of_code_dts <- lapply(unique_IDs_code, refine_dt_per_ID, dt_input = input_dt, status_input = input_code)
+  final_code_dt <- Reduce(rbind, list_of_code_dts)
   
-  # Select move records with associated parameters
-  check_mov_IDs_res <- check_mov_IDs(ID, prev_status_date)
+  print("Proportion of bed date change: ")
+  print(prop.table(table(final_code_dt$bed_date_changed)))
   
-  status_input <- cc_counts_dt_sorted_desc[(control_number == ID & status_date == as.Date(strptime(prev_status_date, format = '%m%d%Y')) & movement_id == check_mov_IDs_res[1]), status_code][1]
+  print("Proportion of center change: ")
+  print(prop.table(table(final_code_dt$center_changed)))
   
-  if (anyNA(status_input)) { 
-    status_input <- NA 
-  }
+  print("Proportion of previous code: ")
+  print(prop.table(table(final_code_dt$prev_code)))
   
-  return(status_input)
-}
-
-get_next_status_date <- function(ID, min_date) {
-  min_date <- as.Date(strptime(min_date, format = '%m%d%Y'))
-  # select move records with associated parameters
-  status_input <- cc_counts_dt_sorted_desc[(control_number == ID & status_date > min_date), status_date][1]
-  if (anyNA(status_input)) { 
-    status_input <- NULL 
-  } 
-  else {
-    status_input <- format(status_input, '%m%d%Y')
-  }
-  return(status_input)
+  print("Proportion of next code: ")
+  print(prop.table(table(final_code_dt$next_code)))
+  
+  # 167 days between PTCE and next status code
+  print("Average # of days to next status change: ")
+  print(
+    mean(final_code_dt$duration_days, na.rm = TRUE)
+  )
+  return(final_code_dt)
 }
 
 
-get_next_status_code <- function(ID, check_date) {
-  check_date <- format(check_date, '%m%d%Y')
-  next_status_date <-  get_next_status_date(ID, check_date)
-  # select move records with associated parameters
-  check_mov_IDs_res <- check_mov_IDs(ID, next_status_date)
-  status_input <- cc_counts_dt_sorted_desc[(control_number == ID & status_date == as.Date(strptime(next_status_date, format = '%m%d%Y')) & movement_id == check_mov_IDs_res[-1]), status_code][1]
-  
-  if (anyNA(status_input)) { 
-    status_input <- NULL 
-  } 
-  return(status_input)
-}
+# Results -----------------------------------------------------------------
+
+
+# Observing Parole to Center (PTCE)
+
+final_PTCE_dt <- create_final_code_dt('PTCE')
+
+# Observing Unsuccessful Discharge (UDSC)
+
+final_UDSC_dt <- create_final_code_dt('UDSC')
+ 
+# Observing Transfer to County (TRTC)
+
+
+# Observing Transfer to State Correctional Institution
+
+final_TRSC_dt <- create_final_code_dt('TRSC')
+
+View(final_TRSC_dt)
+
+
+# 
+# PTCE_dt_long <- melt(PTCE_dt, id = "status_code")
+# 
+# # There are 623 PTCE code entries
+# nrow(PTCE_dt_long)
+# 
+# 
+# PTCE_plot_long <- PTCE_dt_long %>% 
+#   ggplot(aes(x = variable, fill = value)) +
+#   geom_bar() 
+# 
+# PTCE_plot_long
 
 
 
 
-UDSC_df <- head(view_status_case(cc_counts_df, 'UDSC'), 20)
-
-print(nrow(UDSC_df))
-
-# UDSC_df$status_date <- as.Date(UDSC_df$status_date, format = "%Y-%m-%d")
-
-UDSC_plot <- UDSC_df %>% 
-  rowwise() %>%
-  mutate(prev_code = get_prev_status_code(control_number, status_date), next_code = get_next_status_code(control_number, status_date))
-  # select(control_number, status_code, prev_code, next_code, status_date)
-
-View(UDSC_plot)
-# Observing Transfer to County
-
-# view_status_case(cc_counts_df, 'TRTC')
+# isolate_status_case(cc_counts_df, 'TRTC')
 # 
 # center_change <-  cc_counts_df %>% 
 #   filter(location_to_code != 'NULL')
