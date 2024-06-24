@@ -151,25 +151,35 @@ check_mov_IDs <- function(ID, check_date) {
 # print(check_mov_IDs('003636', '10042012'))
 # print(check_mov_IDs('003636', '11062012'))
 
+print(unique(cc_counts_df$status_code))
+count(is.na(cc_counts_df$status_code))
+
+# Ensuring all 28 codes are assigned 
+#"TRGH" "UDSC" * "PTCE" * "TTRN" 
+# "DPWF"  "DBOA" "AWDT"
+# "ERR"  "TRTC" *  "DECS" 
 
 check_status_and_ID <- function(ID, check_date, mov_ID) {
   temp_dt <- cc_counts_dt
   # select status of the move record with associated parameters
   status_input <- temp_dt[(control_number == ID & status_date  == as.Date(strptime(check_date, format = '%m%d%Y')) & movement_id == mov_ID), status_code][1]
-  # the resident is now in correctional facility
+  # the resident is now in correctional facility (1)
   if(status_input == 'TRSC') {
     loc_code <- -1
   }
-  # the resident is no longer in a CCC/CCF (dead, in correctional facility, escaped or paroled)
-  else if(status_input %in% c('ESCP', 'DECN', 'DC2P', 'SENT', 'DECX', 'DECA', 'DECS', 'PTST')) {
+  # the resident is no longer in a CCC/CCF (dead, in correctional facility, escaped or paroled) (8)
+  else if(status_input %in% c('ESCP', 'DECN', 'DECX', 'DECA', 'DECS', 'PTST', 'ABSC')) {
     loc_code <- -2
   }
-  # code for temporary leave
-  else if (status_input %in% c('TTRN', 'DPWT', 'HOSP', 'AWOL', 'ATA')) {
+  # code for temporary leave (12)
+  else if (status_input %in% c('TTRN', 'DPWT', 'HOSP', 'AWOL', 'ATA', 'AWTR', 'AWDN', 'AWNR', 'PEND', 'PREJ', 'PWTH', 'DC2P')) {
     loc_code <- -3
   }
+  # code for release to street (2)
+  else if (status_input %in% c('SENC', 'PTST')) {
+  }
   # all other codes do not result in a change of residence
-  # including PEND, INRS, TRRC, TRGH??, 
+  # including INRS, TRRC, PRCH, RTRS (4)
   else {
     loc_code <- temp_dt[(control_number == ID & status_date  == as.Date(strptime(check_date, format = '%m%d%Y')) & movement_id == mov_ID), location_from_code][1]
   }

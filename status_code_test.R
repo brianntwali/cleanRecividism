@@ -126,12 +126,44 @@ create_final_code_dt <- function(input_code) {
 # Observing Parole to Center (PTCE)
 
 final_PTCE_dt <- create_final_code_dt('PTCE')
+View(final_PTCE_dt)
+
+View(
+  final_PTCE_dt[duration_days > 800]
+)
+
+# Observing Discharge to parole (DC2P)
+
+final_DC2P_dt <- create_final_code_dt('DC2P')
 
 # Observing Unsuccessful Discharge (UDSC)
 
 final_UDSC_dt <- create_final_code_dt('UDSC')
  
 # Observing Transfer to County (TRTC)
+
+final_TRTC_dt <- create_final_code_dt('TRTC')
+
+# Observing Awaiting Transfer (AWTR)
+
+final_AWTR_dt <- create_final_code_dt('AWTR')
+
+nrow(
+  final_AWTR_dt[prev_code == 'PTST']
+)
+
+
+# Observing Awaiting Transfer Denied (AWDN)
+
+final_AWDN_dt <- create_final_code_dt('AWDN')
+
+nrow(
+  final_AWDN_dt
+)
+
+# Observing Pending (PEND)
+
+final_PEND_dt <- create_final_code_dt('PEND')
 
 
 # Observing Transfer to State Correctional Institution
@@ -140,6 +172,9 @@ final_TRSC_dt <- create_final_code_dt('TRSC')
 
 View(final_TRSC_dt)
 
+nrow(
+  final_TRSC_dt[is.na(bed_date_changed)]
+)
 
 # 
 # PTCE_dt_long <- melt(PTCE_dt, id = "status_code")
