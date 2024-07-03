@@ -1,5 +1,5 @@
-install.packages("reshape2")
-library("reshape2")
+#install.packages("reshape2")
+# library("reshape2")
 library("data.table")
 library("readxl")
 library("dplyr")
@@ -16,19 +16,8 @@ library("readr")
 # Corrected file path with print(proper separator
 encripted_drive_path <- "/Volumes/Untitled/PA DOC/"
 
-# Verify the correct file path
-file_path <- paste0(encripted_drive_path, "2021-22_Silveus_deidentified_prison_spells.csv")
-print(file_path)  # This should print the full file path
-
-# Read the CSV file using the corrected file path
-movements <- read.csv(file_path)
-
 
 movements <- read.csv("/Volumes/Untitled/PA DOC/2021-22_Silveus_deidentified_prison_spells.csv")
-
-# Change column name; BRIAN (June 6th 2024):this has been changed so this instruction is no longer necessary 6/3/2024
-#movements <- movements %>% rename("control_number" = "ï..control_number" )
-
 
 demographics <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx"),sheet = "demographics")
 
@@ -41,6 +30,16 @@ sentencing <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentifie
 lsir <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx"),sheet = "lsir")
 
 
+# Comparing movements and ccc_moves ---------------------------------------
+
+movements <- as.data.table(movements)
+movements <- movements[control_number %in% c('001165', '001660', '002459', '002632'), !"control_inmate_mask"][order(control_number, move_date)]
+
+ccc_moves <- as.data.table(ccc_moves)
+ccc_moves <- ccc_moves[control_number %in% c('001165', '001660', '002459', '002632'), !c("control_inmate_mask", "movement_sequence_number", "region_from")][order(control_number, status_date, movement_id)]
+
+View(movements)
+View(ccc_moves)
 
 # Preparing data frame -----------------------------------------------------
 
@@ -68,7 +67,7 @@ isolate_status_case <- function(df_name, status_code_str){
 }
 
 get_dt_input <- function(input_status_code) {
-  dt_input <- head(isolate_status_case(cc_counts_df, input_status_code), 10000)
+  dt_input <- isolate_status_case(cc_counts_df, input_status_code)
   dt_input <- setDT(dt_input)[order(control_number, status_date, movement_id)]
   suppressWarnings(
     dt_input$bed_date <- dt_input$bed_date %>% 
@@ -80,8 +79,16 @@ get_dt_input <- function(input_status_code) {
 
 refine_dt_per_ID  <- function(unique_id, dt_input, status_input) {
   dt_input <- dt_input[(control_number == unique_id)]
-  dt_input <- dt_input[, prev_code := paste0(shift(status_code, type = "lag"))][, next_code := paste0(shift(status_code, type = "lead"))][, duration_days := as.numeric(shift(status_date, type = "lead") - status_date) / 86400][, center_changed := ifelse(shift(location_from_code, type = "lag") == shift(location_from_code, type = "lead"), "no", "yes")][, bed_date_changed := ifelse(shift(bed_date, type = "lag") == shift(bed_date, type = "lead"), "no", "yes")]
-  dt_input <- dt_input[(status_code == status_input)]
+  dt_input <- dt_input[, 
+    prev_code := paste0(shift(status_code, type = "lag"))][, 
+    next_code := paste0(shift(status_code, type = "lead"))][, 
+    duration_days := as.numeric(shift(status_date, type = "lead") - status_date) / 86400][, 
+    center_changed := ifelse(shift(location_from_code, type = "lag") == location_from_code & shift(location_from_code, type = "lead") == location_from_code, "no", "yes")][, 
+    bed_date_changed := ifelse(shift(bed_date, type = "lag") == shift(bed_date, type = "lead"), "no", "yes")
+  ]
+dt_input <- dt_input[(status_code == status_input)]
+  
+  
   return(dt_input)
 }
 
@@ -122,19 +129,45 @@ create_final_code_dt <- function(input_code) {
 
 # Results -----------------------------------------------------------------
 
+# Observing Parole to Street (PTST) 
+# There are 83264 records with this code (of which 57057 are unique)
+
+final_PTST_dt <- create_final_code_dt('PTST')
+
+nrow(final_PTST_dt)
+
+nrow(cc_counts_df %>% 
+       filter(status_code == 'PTST'))
+
+View(final_PTST_dt)
+
+unique_final_PTST_dt <- final_PTST_dt %>% 
+  distinct(control_number, .keep_all = TRUE)
+
+nrow(unique_final_PTST_dt)
+
+# Observing Sentence Complete (SENC)
+# There are 10127 records with this code (of which 10002 are unique)
+
+final_SENC_dt <- create_final_code_dt('SENC')
+
+nrow(final_SENC_dt)
+
+unique_final_SENC_dt <- final_SENC_dt %>% 
+  distinct(control_number, .keep_all = TRUE)
+
+nrow(unique_final_SENC_dt)
 
 # Observing Parole to Center (PTCE)
 
 final_PTCE_dt <- create_final_code_dt('PTCE')
-View(final_PTCE_dt)
-
-View(
-  final_PTCE_dt[duration_days > 800]
-)
 
 # Observing Discharge to parole (DC2P)
 
 final_DC2P_dt <- create_final_code_dt('DC2P')
+
+# View(final_DC2P_dt)
+# View(isolate_status_case(cc_counts_df, 'DC2P'))
 
 # Observing Unsuccessful Discharge (UDSC)
 
@@ -144,37 +177,57 @@ final_UDSC_dt <- create_final_code_dt('UDSC')
 
 final_TRTC_dt <- create_final_code_dt('TRTC')
 
+# Observing Transfer to State Correctional Institution (TRSC)
+
+final_TRSC_dt <- create_final_code_dt('TRSC')
+
+# View(final_TRSC_dt)
+# nrow(
+#   final_TRSC_dt
+# )
+
 # Observing Awaiting Transfer (AWTR)
 
 final_AWTR_dt <- create_final_code_dt('AWTR')
 
-nrow(
-  final_AWTR_dt[prev_code == 'PTST']
-)
-
+# nrow(
+#   final_AWTR_dt[prev_code == 'PTST']
+# )
 
 # Observing Awaiting Transfer Denied (AWDN)
 
 final_AWDN_dt <- create_final_code_dt('AWDN')
 
-nrow(
-  final_AWDN_dt
-)
+# nrow(
+#   final_AWDN_dt
+# )
+
+#  (TTRN)
+
+final_TTRN_dt <- create_final_code_dt('TTRN')
+
+# (AWDT)
+
+final_AWDT_dt <- create_final_code_dt('AWDT')
+
+# (ERR) - only 3 instances
+
+final_ERR_dt <- create_final_code_dt('ERR')
+
+nrow(final_ERR_dt)
+
+# (DBOA)
+
+final_DBOA_dt <- create_final_code_dt('DBOA')
+nrow(final_DBOA_dt)
+
+# (TRGH)
+
+final_TRGH_dt <- create_final_code_dt('TRGH')
 
 # Observing Pending (PEND)
 
 final_PEND_dt <- create_final_code_dt('PEND')
-
-
-# Observing Transfer to State Correctional Institution
-
-final_TRSC_dt <- create_final_code_dt('TRSC')
-
-View(final_TRSC_dt)
-
-nrow(
-  final_TRSC_dt[is.na(bed_date_changed)]
-)
 
 # 
 # PTCE_dt_long <- melt(PTCE_dt, id = "status_code")
@@ -188,74 +241,3 @@ nrow(
 #   geom_bar() 
 # 
 # PTCE_plot_long
-
-
-
-
-# isolate_status_case(cc_counts_df, 'TRTC')
-# 
-# center_change <-  cc_counts_df %>% 
-#   filter(location_to_code != 'NULL')
-# 
-# center_change_codes <- unique(center_change$status_code)
-# 
-# center_change_codes 
-# 
-# 
-# 
-# 
-# 
-# # Of the 34 unique codes, we are interested in 4 arrival codes: 
-# # INRS - In Residence
-# # TRRC - Transfer Received
-# # RTRS - Return to Residence
-# # DPWF - Return from DPW
-# 
-# cc_arrivals <- cc_counts_df %>% 
-#   filter(status_code == 'INRS' | status_code == 'TRRC' | status_code == 'RTRS' | status_code == 'DPWF') %>% 
-#   mutate(month_year = floor_date(status_date,"month")) %>%  
-#   # Replaced the following: group_by(month_year, location_from_code) %>% summarise(arrivals=n(), .groups = 'drop') %>% ungroup() 
-#   summarize(
-#     arrivals = n(),
-#     .by = c(month_year, location_from_code)
-#   ) %>% 
-#   # BRIAN (June 6th 2024): arrange does not seem to do anything. Perhaps this is because it is not a tibble anymore?
-#   # arrange(desc(location_from_code)) %>% 
-#   complete(month_year, location_from_code, fill = list(arrivals = 0)) %>%  
-#   as.data.frame()
-# 
-# 
-# # Adding transfer out, parole, etc by CCC/CCF month
-# 
-# departure_codes <- c('TRGH','PTST','DECN','ABSC','TRSC','UDSC','TTRN','DPWT','DC2P','SENC','ESCP','HOSP','AWOL','ATA','DECX','DECA','DECS','TRTC')
-# 
-# cc_departures <- cc_counts_df %>% 
-#   filter(status_code  %in% departure_codes) %>% 
-#   mutate(month_year=floor_date(status_date, unit='month')) %>% 
-#   # Replaced the following: group_by(month_year, location_from_code)%>% summarise(departures=n(), .groups = 'drop') %>% ungroup() %>%
-#   summarize (
-#     departures = n(),
-#     .by = c(month_year, location_from_code)
-#   ) %>% 
-#   complete(month_year, location_from_code, fill = list(departures=0))  %>%  
-#   as.data.frame()
-# 
-# 
-# # Merge departures and arrivals. Subtract to have net flow
-# cc_flows <- left_join(cc_arrivals,cc_departures, by = c('month_year'='month_year', 'location_from_code'='location_from_code')) %>% 
-#   replace_na(list(departures=0, arrivals=0))
-# cc_flows <- cc_flows %>% 
-#   mutate(net_arrivals = arrivals - departures)
-# 
-# cc_flows_by_month <- cc_flows %>% 
-#   group_by(month_year) %>%
-#   summarise(arrivals = sum(arrivals),departures = sum(departures), net_arrivals = sum(net_arrivals)) %>%
-#   arrange(month_year) %>% mutate(month_year = ymd(month_year))
-# 
-# # Plot of net flow
-# ggplot(data=cc_flows_by_month %>% 
-#          filter(year(month_year) >= 2008 & year(month_year) < 2020), aes(x = month_year, y = arrivals)) + 
-#   geom_point() + geom_line() + 
-#   labs(title = "Arrivals to Pennsylvania Halfway Houses by Month", y='Arrivals', x='') +
-#   scale_x_date(date_breaks = '1 year', date_labels = "%b-%Y") + 
-#   theme(axis.text.x = element_text(angle = 90))
