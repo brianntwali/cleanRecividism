@@ -208,6 +208,8 @@ populate_IDs <- function(ID, check_date, end_date) {
 
 # Creating dataframe to fill later ----------------------------------------
 
+sampling <- sample(unique_IDs, 10)
+
 sampling <- sort(sampling)
 
 list_of_dts <- lapply(sampling, populate_IDs, check_date = '01012008', end_date = '01012021')

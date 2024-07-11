@@ -168,8 +168,6 @@ check_status_and_ID <- function(ID, check_date, mov_ID) {
   # select status of the move record with associated parameters
   status_input <- temp_dt[(control_number == ID & status_date  == as.Date(strptime(check_date, format = '%m%d%Y')) & movement_id == mov_ID), status_code][1]
   
-  print(paste0('ID: ', ID, ' Check Date: ', check_date, ' Mov ID: ', mov_ID, ' Status Input: ', status_input))
-  
   if (length(status_input) == 0 || is.na(status_input)) {
     print("status_input is NA or length 0")
     return(NA)
@@ -194,8 +192,7 @@ check_status_and_ID <- function(ID, check_date, mov_ID) {
   # all other codes do not result in a change of residence
   # including INRS, TRRC, PRCH, RTRS, DPWF, 'TRRC' (5)
   else {
-    loc_code <- temp_dt[(control_number == ID & status_date  == as.Date(strptime(check_date, format = '%m%d%Y')) & movement_id == mov_ID), location_from_code][1]
-    print(paste0('Location From Code: ', loc_code))
+    loc_code <- temp_dt[(control_number == ID & status_date  == as.Date(strptime(check_date, format = '%m%d%Y')) & movement_id == mov_ID), location_from_code][1]  
   }
   
   if (length(loc_code) == 0 || is.na(loc_code)) {
@@ -271,14 +268,9 @@ populate_IDs <- function(ID, check_date, end_date) {
     created_df <- data.frame(ID = ID, stringsAsFactors = FALSE)
     row.names(created_df) <- created_df$ID
     
-    print(paste0('Working on ID: ', ID))
-    
     prev_status_date <- get_prev_status_date(ID, check_date)
     next_status_date <- get_next_status_date(ID, check_date)
     current_loc <- -5
-    
-    print(paste0('Initial prev_status_date: ', prev_status_date))
-    print(paste0('Initial next_status_date: ', next_status_date))
     
     while (compare_dates(end_date, check_date)) {
       if (!is.null(prev_status_date)) {
@@ -286,9 +278,7 @@ populate_IDs <- function(ID, check_date, end_date) {
         if (length(check_mov_IDs_res) == 0) {
           stop("check_mov_IDs_res is empty")
         }
-        print(paste0('check_mov_IDs_res: ', check_mov_IDs_res))
         current_loc <- check_status_and_ID(ID, prev_status_date, check_mov_IDs_res[1])
-        print(paste0('Current loc: ', current_loc))
       }
       
       if (is.null(current_loc)) {
@@ -309,7 +299,6 @@ populate_IDs <- function(ID, check_date, end_date) {
         next_status_date <- get_next_status_date(ID, check_date)
       }
     }
-    print("Done!")
     return(created_df)
   }, error = function(e) {
     cat("Error in processing ID:", ID, "Error message:", e$message, "\n")
@@ -379,3 +368,17 @@ View(final_dt_2)
 # 
 # 
 # # write.csv(target_df_2, 'attemp1.csv')
+
+unique_IDs <- ccc_moves %>%
+  distinct(control_number) %>%
+  arrange(desc(control_number)) %>%
+  pull(control_number)
+
+sampling <- sample(unique_IDs, 3000)
+
+sampling <- sort(sampling)
+
+list_of_dts <- lapply(sampling, populate_IDs, check_date = '01012008', end_date = '01012021')
+calendar_file_use <- Reduce(rbind, list_of_dts)
+
+write_csv(calendar_file_use, "calendar_file_use.csv")
