@@ -403,3 +403,7 @@ overall_avg_time_to_next_sentence <- more_sentencing %>%
 
 print(overall_avg_time_to_next_sentence)
 
+min_time_to_next_sentence <- more_sentencing %>%
+  summarize(min_time_to_next_sentence = min(time_to_next_sentence, na.rm = TRUE))
+
+print(min_time_to_next_sentence)

@@ -9,6 +9,8 @@
 
 # install.packages("schoolmath")
 # install.packages("stringr")
+# install.packages("gtsummary")
+library(gtsummary)
 library("stringr")
 library("schoolmath")
 library("data.table")
@@ -204,7 +206,30 @@ df_complete <- test_df3 %>%
 
 View(df_complete)
 
+nrow(df_complete)
 
+
+# Summary statistics by facility type 
+
+comparison <- df_complete %>% 
+  group_by(loc, m_yr) %>% 
+  summarize(
+    avg_lsir = mean(lsir, na.rm = TRUE),
+    avg_age = mean(age, na.rm = TRUE),
+    perc_black = round(mean(race == 'BLACK') * 100, 3), 
+    perc_male = round(mean(sex == 'MALE') * 100, 3),
+    pop_count = n(),
+    facility_type = first(facility_type), 
+    facility_region = first(facility_region),  
+    across(starts_with("facility_type_"), first),  
+    across(starts_with("facility_region_"), first)
+  )
+
+comparison_sum <- comparison %>% 
+  select(!c(loc, m_yr)) %>%
+  tbl_summary(by = facility_type)
+
+comparison_sum
 # adding program (incomplete)
 
 
@@ -255,10 +280,11 @@ facility_analysis <- df_complete_dummy %>%
     across(starts_with("facility_region_"), first)
   )
 
-View(facility_analysis)
+nrow(facility_analysis)
 
 write.csv(facility_analysis, "working_facility_file.csv")
 
+View(facility_analysis)
 
 # check if the count is higher during certain months
 # add count per facility
