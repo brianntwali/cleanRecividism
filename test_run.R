@@ -18,9 +18,9 @@ library("readr")
 # Loading data ------------------------------------------------------------
 
 # Brian's Path
-encripted_drive_path <- "/Volumes/Untitled/PA DOC/"
+#encripted_drive_path <- "/Volumes/Untitled/PA DOC/"
 # Neil's PC
-# encripted_drive_path <- "E:/PA DOC/"
+encripted_drive_path <- "C:/Users/silveus/Documents/Data/PA DOC/"
 
 movements <- read.csv(paste0(encripted_drive_path, "2021-22_Silveus_deidentified_prison_spells.csv"))
 
@@ -36,7 +36,18 @@ lsir <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx
 
 
 
+# Pull functions from helper functions.R --------------------------------------------------
+source("helper functions.R")
+
 # Creating calendar file --------------------------------------------------
+
+cc_counts_df <- ccc_moves %>% 
+  # BRIAN (June 6th 2024): added 'movement_id'
+  select(c('control_number', 'bed_date', 'status_code', 'status_description','status_date', 'location_to_code', 'location_from_code', 'movement_id')) %>% 
+  distinct(control_number, status_code, status_date, location_from_code, .keep_all = TRUE) %>% 
+  # BRIAN (June 6th 2024): check for duplicate movement IDs
+  distinct(movement_id, .keep_all = TRUE)
+
 
 unique_IDs <- cc_counts_df %>%
   distinct(control_number) %>%
@@ -63,7 +74,9 @@ unique_facilities <- ccc_cohort %>%
   distinct(facility, .keep_all = TRUE) %>% 
   select(center_code, facility, region_code)
 
+
 main_df <- pop_m_yr_df(final_calendar_file)
+print("Function 2 Complete")
 
 main_df_complete <- main_df %>% 
   rowwise() %>%
@@ -76,7 +89,7 @@ main_df_complete <- main_df %>%
     facility_region = get_facility_region(loc)
   )  %>%
   ungroup()
-
+print("Function 3 Complete")
 
 main_comparison_df <- main_df_complete %>% 
   group_by(loc, m_yr) %>% 
@@ -92,34 +105,36 @@ main_comparison_df <- main_df_complete %>%
     across(starts_with("facility_region_"), first)
   )
 
+print("Function 4 Complete")
+
 main_comparison_summary <- main_comparison_df %>% 
   select(!c(loc, m_yr)) %>%
   tbl_summary(by = facility_type)
 
 main_comparison_summary
-
+print("Function 5 Complete")
 
 # Creating facility level dummy variables ---------------------------------
-
-main_df_with_dummy <- dummy_cols(
-  main_df_complete,
-  select_columns = c("facility_type", "facility_region"),
-  remove_first_dummy = TRUE
-  # remove_selected_columns = TRUE (Removes the original columns after creating the dummy variables)
-)
-
-
-main_facility_analysis <- main_df_with_dummy %>% 
-  group_by(loc, m_yr) %>% 
-  summarize(
-    avg_lsir = mean(lsir, na.rm = TRUE),
-    avg_age = mean(age, na.rm = TRUE),
-    perc_black = round(mean(race == 'BLACK') * 100, 3), 
-    perc_male = round(mean(sex == 'MALE') * 100, 3),
-    pop_count = n(),
-    facility_type = first(facility_type), 
-    facility_region = first(facility_region),  
-    across(starts_with("facility_type_"), first),  
-    across(starts_with("facility_region_"), first)
-  )
-
+# 
+# main_df_with_dummy <- dummy_cols(
+#   main_df_complete,
+#   select_columns = c("facility_type", "facility_region"),
+#   remove_first_dummy = TRUE
+#   # remove_selected_columns = TRUE (Removes the original columns after creating the dummy variables)
+# )
+# 
+# 
+# main_facility_analysis <- main_df_with_dummy %>% 
+#   group_by(loc, m_yr) %>% 
+#   summarize(
+#     avg_lsir = mean(lsir, na.rm = TRUE),
+#     avg_age = mean(age, na.rm = TRUE),
+#     perc_black = round(mean(race == 'BLACK') * 100, 3), 
+#     perc_male = round(mean(sex == 'MALE') * 100, 3),
+#     pop_count = n(),
+#     facility_type = first(facility_type), 
+#     facility_region = first(facility_region),  
+#     across(starts_with("facility_type_"), first),  
+#     across(starts_with("facility_region_"), first)
+#   )
+# 

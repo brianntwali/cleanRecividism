@@ -14,10 +14,11 @@ library("readr")
 # Loading data ------------------------------------------------------------
 
 # Corrected file path with print(proper separator
-encripted_drive_path <- "/Volumes/Untitled/PA DOC/"
+#encripted_drive_path <- "/Volumes/Untitled/PA DOC/"
+#Neil's path
+encripted_drive_path <- "C:/Users/silveus/Documents/Data/PA DOC/"
 
-
-movements <- read.csv("/Volumes/Untitled/PA DOC/2021-22_Silveus_deidentified_prison_spells.csv")
+movements <- read.csv(paste0(encripted_drive_path,"2021-22_Silveus_deidentified_prison_spells.csv"))
 
 demographics <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx"),sheet = "demographics")
 
@@ -28,6 +29,7 @@ ccc_moves <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified
 sentencing <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx"),sheet = "sentencing")
 
 lsir <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx"),sheet = "lsir")
+
 
 
 # Comparing movements and ccc_moves ---------------------------------------
