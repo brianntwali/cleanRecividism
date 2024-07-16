@@ -1,3 +1,44 @@
+# install.packages("schoolmath")
+# install.packages("stringr")
+# install.packages("gtsummary")
+library("gtsummary")
+library("stringr")
+library("schoolmath")
+library("parallel")
+library("data.table")
+library("readxl")
+library("dplyr")
+library("tidyr")
+library("lubridate")
+
+library("fastDummies")
+library("ggplot2")
+library("readr")
+
+
+
+
+# Loading data ------------------------------------------------------------
+
+# Brian's Path
+#encripted_drive_path <- "/Volumes/Untitled/PA DOC/"
+# Neil's PC
+encripted_drive_path <- "C:/Users/silveus/Documents/Data/PA DOC/"
+
+setwd(encripted_drive_path)
+
+movements <- read.csv(paste0(encripted_drive_path, "2021-22_Silveus_deidentified_prison_spells.csv"))
+
+demographics <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx"),sheet = "demographics")
+
+ccc_cohort <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx"),sheet = "ccc_cohort")
+
+ccc_moves <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx"),sheet = "ccc_moves")
+
+sentencing <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx"),sheet = "sentencing")
+
+lsir <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx"),sheet = "lsir")
+
 
 
 # Creating Functions
@@ -32,6 +73,29 @@ compare_dates <- function(date_one, date_two) {
   return(result)
 }
 
+cc_counts_df <- ccc_moves %>% 
+  # BRIAN (June 6th 2024): added 'movement_id'
+  select(c('control_number', 'bed_date', 'status_code', 'status_description','status_date', 'location_to_code', 'location_from_code', 'movement_id')) %>% 
+  distinct(control_number, status_code, status_date, location_from_code, .keep_all = TRUE) %>% 
+  # BRIAN (June 6th 2024): check for duplicate movement IDs
+  distinct(movement_id, .keep_all = TRUE)
+
+
+unique_IDs <- cc_counts_df %>%
+  distinct(control_number) %>%
+  arrange(desc(control_number)) %>%
+  pull(control_number) %>% 
+  na.omit(unique_IDs)
+
+# transform into data.table for efficiency
+cc_counts_dt <- as.data.table(cc_counts_df)
+
+# Precompute sorted data tables
+cc_counts_dt_sorted_desc <- setorder(copy(cc_counts_dt), -status_date)
+cc_counts_dt_sorted_asc <- setorder(copy(cc_counts_dt), status_date)
+
+# Precompute sorted data tables
+cc_counts_dt_sorted_id_desc <- setorder(copy(cc_counts_dt), -movement_id)
 
 get_prev_status_date <- function(ID, max_date) {
   max_date <- as.Date(strptime(max_date, format = '%m%d%Y'))
@@ -287,9 +351,9 @@ get_facility_region <- function(loc) {
 }
 
 
-get_program <- function(id, current_date) {
-  
-}
+# get_program <- function(id, current_date) {
+#   
+# }
 
 
 

@@ -1,65 +1,26 @@
-# install.packages("schoolmath")
-# install.packages("stringr")
-# install.packages("gtsummary")
-library("gtsummary")
-library("stringr")
-library("schoolmath")
-library("parallel")
-library("data.table")
-library("readxl")
-library("dplyr")
-library("tidyr")
-library("lubridate")
+# Brian's Github Path
+# encripted_drive_path <- 
+# Neil's PC Github Path
+github_path <- "C:/Users/silveus/Documents/github projects/cleanRecividism/"
 
-library("fastDummies")
-library("ggplot2")
-library("readr")
-
-# Loading data ------------------------------------------------------------
-
-# Brian's Path
-#encripted_drive_path <- "/Volumes/Untitled/PA DOC/"
-# Neil's PC
-encripted_drive_path <- "C:/Users/silveus/Documents/Data/PA DOC/"
-
-movements <- read.csv(paste0(encripted_drive_path, "2021-22_Silveus_deidentified_prison_spells.csv"))
-
-demographics <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx"),sheet = "demographics")
-
-ccc_cohort <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx"),sheet = "ccc_cohort")
-
-ccc_moves <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx"),sheet = "ccc_moves")
-
-sentencing <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx"),sheet = "sentencing")
-
-lsir <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx"),sheet = "lsir")
-
-
+setwd(github_path)
 
 # Pull functions from helper functions.R --------------------------------------------------
-source("helper functions.R")
+source("helper functions.R", echo = TRUE)
 
 # Creating calendar file --------------------------------------------------
 
-cc_counts_df <- ccc_moves %>% 
-  # BRIAN (June 6th 2024): added 'movement_id'
-  select(c('control_number', 'bed_date', 'status_code', 'status_description','status_date', 'location_to_code', 'location_from_code', 'movement_id')) %>% 
-  distinct(control_number, status_code, status_date, location_from_code, .keep_all = TRUE) %>% 
-  # BRIAN (June 6th 2024): check for duplicate movement IDs
-  distinct(movement_id, .keep_all = TRUE)
 
 
-unique_IDs <- cc_counts_df %>%
-  distinct(control_number) %>%
-  arrange(desc(control_number)) %>%
-  pull(control_number) %>% 
-  na.omit(unique_IDs)
+print(head(unique_IDs, 10))
 
 numberOfCores <- detectCores()
 system.time({
   final_list_of_dts <- mclapply(unique_IDs, populate_IDs, check_date = '01012008', end_date = '01012021')
   final_calendar_file <- Reduce(rbind, final_list_of_dts)
 })
+
+View(final_list_of_dts)
 
 
 # Set the first column as row names
