@@ -381,4 +381,68 @@ sampling <- sort(sampling)
 list_of_dts <- lapply(sampling, populate_IDs, check_date = '01012008', end_date = '01012021')
 calendar_file_use <- Reduce(rbind, list_of_dts)
 
+
 write_csv(calendar_file_use, "calendar_file_use.csv")
+
+
+View(calendar_file_use)
+
+# Set the first column as row names
+rownames(calendar_file_use) <- calendar_file_use[, 1]
+# Remove the first column from the DataFrame
+calendar_file_use <- calendar_file_use[, -1]
+
+
+# function to get location for one ID and one date and enter into add_df 
+get_id_m_yr_data <- function(input_id, input_cal_file, input_date) {
+  # Extract the value
+  value <- as.numeric(input_cal_file[input_id, input_date])
+  
+  # Check if the value is positive
+  if (!is.na(value) && value > 0) {
+    # Create a DataFrame with the necessary information
+    add_df <- data.frame(m_yr = input_date, loc = input_cal_file[input_id, input_date], ID = input_id, stringsAsFactors = FALSE)
+    return(add_df)
+  } else {
+    # Return an empty DataFrame if the value is not positive
+    return(data.frame())
+  }
+}
+
+# # Test the function
+# test_df1 <- get_id_m_yr_data('069573', calendar_file, '01142008')
+# 
+# # View the result
+# View(test_df1)
+
+
+# function to create a particular month-year's associated rows
+collect_m_yr_data <- function(m_yr_rows, ids, cal_file) {
+  list_ids_dfs <- lapply(ids, get_id_m_yr_data, input_cal_file = cal_file, input_date = m_yr_rows)
+  fill_df_for_m_yr <- Reduce(rbind, list_ids_dfs)
+}
+
+# test
+# test_list_ids <- rownames(calendar_file)
+# test_df2 <- collect_m_yr_data('01142008', test_list_ids, calendar_file)
+
+# function to create range of years to operate on
+create_yrs <- function() {
+  date_sequence <- seq(as.Date("2008-01-01"), as.Date("2020-12-12"), by = "month")
+  # Format the dates as MMDDYYYY
+  formatted_dates <- format(date_sequence, "%m%d%Y")
+  return(formatted_dates)
+}
+
+# main function to populate the month-year dataframe
+pop_m_yr_df <- function(og_cal_file) {
+  years <- create_yrs()
+  extracted_ids <- rownames(og_cal_file)
+  list_of_dfs <- lapply(years, collect_m_yr_data, ids = extracted_ids, cal_file = og_cal_file)
+  m_yr_df <- Reduce(rbind, list_of_dfs) 
+  return(m_yr_df)
+}
+
+# run main function
+test_df4 <- pop_m_yr_df(calendar_file_use)
+View(test_df4)
