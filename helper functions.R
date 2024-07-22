@@ -217,8 +217,9 @@ populate_IDs <- function(ID, check_date, end_date) {
     }
     return(created_df)
   }, error = function(e) {
-    cat("Error in processing ID:", ID, "Error message:", e$message, "\n")
-    return(NULL)
+    #cat("Error in processing ID:", ID, "Error message:", e$message, "\n")
+    message("An error occured: ",e$message)
+    return(5)
   })
 }
 
@@ -356,6 +357,6 @@ get_facility_region <- function(loc) {
 # }
 
 
-
+prelim_datasets <- ls()
 
 

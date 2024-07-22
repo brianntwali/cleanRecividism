@@ -14,6 +14,42 @@ source("helper functions.R", echo = TRUE)
 
 print(head(unique_IDs, 10))
 
+# Create a cluster with the number of available cores
+num_cores <- detectCores() - 1
+cl <- makeCluster(num_cores)
+
+test_fn <- function(x){
+  return(populate_IDs(x, check_date = '01012008', end_date = '01012021'))
+  #return(x)
+}
+# Check if the dataset is available on all worker nodes
+check_dataset <- function(dataset) {
+  exists(dataset, where = .GlobalEnv)
+}
+# Export the required libraries and functions to each worker
+clusterEvalQ(cl, library(parallel))
+# Export functions and required variables to the cluster
+export_fns <- list("check_dataset","test_fn","populate_IDs","get_prev_status_date","get_next_status_date","check_mov_IDs","check_status_and_ID","compare_dates","increment_date")
+export_datasets <- prelim_datasets
+
+# Define a function to load packages
+load_packages <- function(packages) {
+  lapply(packages, library, character.only = TRUE)
+}
+export_packages <- list("parallel","gtsummary", "stringr", "schoolmath", "data.table", "readxl", "dplyr", "tidyr", "lubridate", "fastDummies", "ggplot2", "readr")
+
+clusterCall(cl,load_packages,export_packages)
+
+clusterExport(cl, c(export_datasets,export_fns))
+              
+result <- parLapply(cl, unique_IDs, test_fn)
+#print(result)
+
+
+#clusterEvalQ(cl, check_dataset("cc_counts_dt"))
+
+stopCluster(cl)
+
 numberOfCores <- detectCores()
 system.time({
   final_list_of_dts <- mclapply(unique_IDs, populate_IDs, check_date = '01012008', end_date = '01012021')
