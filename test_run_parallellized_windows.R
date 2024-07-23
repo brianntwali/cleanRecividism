@@ -23,9 +23,9 @@ populate_IDs2 <- function(x){
   return(populate_IDs(x, check_date = '01012008', end_date = '01012021'))
 }
 # Check if the dataset is available on all worker nodes. Use for diagnostics
-#check_dataset <- function(dataset) {
-#  exists(dataset, where = .GlobalEnv)
-#}
+check_dataset <- function(dataset) {
+  exists(dataset, where = .GlobalEnv)
+}
 
 # Export the required libraries and functions to each worker node
 
@@ -49,7 +49,9 @@ clusterExport(cl, c(export_datasets,export_fns))
 
 #Run paralleled code to populate_IDs              
 result <- parLapply(cl, unique_IDs, populate_IDs2)
+write_csv(result,"C:/Users/silveus/Documents/PA DOC/intermediate data/TEMP_result.csv")
 final_calendar_file <- Reduce(rbind, result)
+
 
 # Diagnostic to check whether a dataset is present on worker nodes (cores)
 #clusterEvalQ(cl, check_dataset("cc_counts_dt"))
@@ -72,7 +74,7 @@ stopCluster(cl)
 rownames(final_calendar_file) <- final_calendar_file[, 1]
 # Remove the first column from the dataframe
 final_calendar_file <- final_calendar_file[, -1]
-
+write_csv(final_calendar_file,"C:/Users/silveus/Documents/PA DOC/intermediate data/calander_file.csv")
 
 # Creating main dataframe -------------------------------------------------
 
