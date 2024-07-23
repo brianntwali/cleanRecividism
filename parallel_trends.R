@@ -346,20 +346,10 @@ create_variable_flow <- function(df, period_set, var_name) {
       period_group = start_date + months((period_group - 1) * period_set)
     ) %>%
     as.data.frame()
-  
-  # Adjust date breaks dynamically based on period_set to avoid clutter
-  # if (period_set >= 12) {
+ 
     date_breaks_string <- "1 year"
     date_labels_string <- "%Y"
-  # } else if (period_set >= 6) {
-  #   date_breaks_string <- "6 months"
-  #   date_labels_string <- "%Y-%m"
-  # } else {
-  #   date_breaks_string <- paste0(period_set * 2, " months")
-  #   date_labels_string <- "%Y-%m"
-  # }
-  
-  # , colour = facility_type
+ 
   plot <- ggplot(binned_df, aes(x = period_group, y = .data[[var_name]], colour = facility_type)) +
     geom_point() +
     geom_line() +
