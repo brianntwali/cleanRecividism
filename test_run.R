@@ -18,45 +18,54 @@ print(head(unique_IDs, 10))
 num_cores <- detectCores() - 1
 cl <- makeCluster(num_cores)
 
-test_fn <- function(x){
+#define populate_IDs2 with dates hard coded
+populate_IDs2 <- function(x){
   return(populate_IDs(x, check_date = '01012008', end_date = '01012021'))
-  #return(x)
 }
-# Check if the dataset is available on all worker nodes
-check_dataset <- function(dataset) {
-  exists(dataset, where = .GlobalEnv)
-}
-# Export the required libraries and functions to each worker
+# Check if the dataset is available on all worker nodes. Use for diagnostics
+#check_dataset <- function(dataset) {
+#  exists(dataset, where = .GlobalEnv)
+#}
+
+# Export the required libraries and functions to each worker node
 clusterEvalQ(cl, library(parallel))
 # Export functions and required variables to the cluster
-export_fns <- list("check_dataset","test_fn","populate_IDs","get_prev_status_date","get_next_status_date","check_mov_IDs","check_status_and_ID","compare_dates","increment_date")
+export_fns <- list("check_dataset","populate_IDs2","populate_IDs","get_prev_status_date","get_next_status_date","check_mov_IDs","check_status_and_ID","compare_dates","increment_date")
 export_datasets <- prelim_datasets
 
 # Define a function to load packages
 load_packages <- function(packages) {
   lapply(packages, library, character.only = TRUE)
 }
+
+#  List of packages to export to cluster
 export_packages <- list("parallel","gtsummary", "stringr", "schoolmath", "data.table", "readxl", "dplyr", "tidyr", "lubridate", "fastDummies", "ggplot2", "readr")
 
+# Export packages to cluster
 clusterCall(cl,load_packages,export_packages)
 
+# Export datasets and functions to cluster
 clusterExport(cl, c(export_datasets,export_fns))
-              
-result <- parLapply(cl, unique_IDs, test_fn)
-#print(result)
 
+#Run paralleled code to populate_IDs              
+result <- parLapply(cl, unique_IDs, populate_IDs2)
+final_calendar_file <- Reduce(rbind, result)
 
+# Diagnostic to check whether a dataset is present on worker nodes (cores)
 #clusterEvalQ(cl, check_dataset("cc_counts_dt"))
 
+# end cluster to free up cores
 stopCluster(cl)
 
-numberOfCores <- detectCores()
-system.time({
-  final_list_of_dts <- mclapply(unique_IDs, populate_IDs, check_date = '01012008', end_date = '01012021')
-  final_calendar_file <- Reduce(rbind, final_list_of_dts)
-})
 
-View(final_list_of_dts)
+  # OLD -NAS 7/22/24
+  # numberOfCores <- detectCores()
+  # system.time({
+  #   final_list_of_dts <- mclapply(unique_IDs, populate_IDs, check_date = '01012008', end_date = '01012021')
+  #   final_calendar_file <- Reduce(rbind, final_list_of_dts)
+  # })
+  # 
+  # View(final_list_of_dts)
 
 
 # Set the first column as row names

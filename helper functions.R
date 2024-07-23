@@ -356,7 +356,8 @@ get_facility_region <- function(loc) {
 #   
 # }
 
-
+# Store names of datasets created in this script. We'll use this to export to the
+# cluster in test_run.R
 prelim_datasets <- ls()
 
 
