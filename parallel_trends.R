@@ -1,8 +1,7 @@
-# install.packages("multidplyr")
-# install.packages("furrr")
 
 library("multidplyr")
 library("furrr")
+
 library("parallel")
 library("data.table")
 library("readxl")
@@ -18,9 +17,12 @@ library("readr")
 # Loading data ------------------------------------------------------------
 
 # Brian's Path
-encripted_drive_path <- "/Volumes/Untitled/PA DOC/"
+#encripted_drive_path <- "/Volumes/Untitled/PA DOC/"
 # Neil's PC
 # encripted_drive_path <- "E:/PA DOC/"
+# Neil's Mac
+encripted_drive_path <- "/Users/silveus/Documents/Data/PA DOC/"
+
 
 movements <- read.csv(paste0(encripted_drive_path, "2021-22_Silveus_deidentified_prison_spells.csv"))
 
@@ -33,6 +35,7 @@ ccc_moves <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified
 sentencing <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx"),sheet = "sentencing")
 
 lsir <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx"),sheet = "lsir")
+
 
 
 # Define the cluster
@@ -52,8 +55,10 @@ cluster_copy(cluster, c('get_age', 'get_lsir', 'get_race', 'get_sex', 'get_facil
 
 new_arrivals <- ccc_moves %>% 
   distinct(movement_id, .keep_all = TRUE) %>% 
+
   filter(status_code %in% c('INRS', 'TRRC')) %>% 
   select(c('control_number','status_date', 'location' = 'location_from_code'))
+
   
 
 View(new_arrivals)
@@ -70,9 +75,6 @@ INRS_codes <- new_arrivals %>%
 # There are 23 codes missing from ccc_cohort that are in ccc_moves rows with INRS
 
 
-print(INRS_codes)
-
-print(unique_fac_codes)
 
 disjointed <- setdiff(INRS_codes, unique_fac_codes)
 
@@ -82,7 +84,8 @@ unique_facilities_df <- ccc_cohort %>%
 
 
 get_facility_type <- function(loc) {
-  facility <- unique_facilities_df %>% 
+ 
+facility <- unique_facilities_df %>% 
     filter(center_code == loc) %>% 
     pull(facility)
   
@@ -140,6 +143,7 @@ get_age <- function(id, current_date) {
 
 
 new_arrivals_filled <- new_arrivals %>%
+
   filter(!(location %in% disjointed)) %>% 
   rowwise() %>%
   partition(cluster) %>% 
@@ -156,6 +160,80 @@ new_arrivals_filled <- new_arrivals %>%
 
 View(new_arrivals_filled)
 
+
+lsir_flow <- new_arrivals_filled %>% 
+  mutate(
+    month_year = floor_date(status_date, unit = 'month')
+  ) %>% 
+  filter(year(month_year) > 2007 & year(month_year) < 2021) %>% 
+  summarise(
+    avg_lsir = mean(lsir, na.rm = TRUE),
+    .by = c(facility_type, month_year)
+  ) %>%
+  arrange(month_year) %>% 
+  mutate(month_year=ymd(month_year)) %>% 
+  as.data.frame()
+
+
+View(lsir_flow)
+
+ggplot(lsir_flow, aes(x = month_year, y = avg_lsir, colour = facility_type)) +
+  geom_point() +
+  geom_line()
+
+
+race_flow <- new_arrivals_filled %>% 
+  mutate(
+    month_year = floor_date(status_date, unit = 'month')
+  ) %>% 
+  filter(year(month_year) > 2007 & year(month_year) < 2021) %>% 
+  summarise(
+    perc_black = round(mean(race == 'BLACK') * 100, 3), 
+    .by = c(facility_type, month_year)
+  ) %>%
+  arrange(month_year) %>% 
+  mutate(month_year=ymd(month_year)) %>% 
+  as.data.frame()
+
+ggplot(race_flow, aes(x = month_year, y = perc_black, colour = facility_type)) +
+  geom_point() +
+  geom_line()
+
+
+age_flow <- new_arrivals_filled %>% 
+  mutate(
+    month_year = floor_date(status_date, unit = 'month')
+  ) %>% 
+  filter(year(month_year) > 2007 & year(month_year) < 2021) %>% 
+  summarise(
+    avg_age = mean(age, na.rm = TRUE),
+    .by = c(facility_type, month_year)
+  ) %>%
+  arrange(month_year) %>% 
+  mutate(month_year=ymd(month_year)) %>% 
+  as.data.frame()
+
+ggplot(age_flow, aes(x = month_year, y = avg_age, colour = facility_type)) +
+  geom_point() +
+  geom_line()
+
+
+male_flow <- new_arrivals_filled %>% 
+  mutate(
+    month_year = floor_date(status_date, unit = 'month')
+  ) %>% 
+  filter(year(month_year) > 2007 & year(month_year) < 2021) %>% 
+  summarise(
+    perc_male = round(mean(sex == 'MALE') * 100, 3),
+    .by = c(facility_type, month_year)
+  ) %>%
+  arrange(month_year) %>% 
+  mutate(month_year=ymd(month_year)) %>% 
+  as.data.frame()
+
+ggplot(male_flow, aes(x = month_year, y = perc_male, colour = facility_type)) +
+  geom_point() +
+  geom_line()
 
 # get_program <- function(id, current_date) {
 #   form_current_date <- as.Date(strptime(current_date, format = '%m%d%Y'))
@@ -355,3 +433,4 @@ race_flow <- create_variable_flow(arrivals_floored, 3, 'perc_black')
 # ggplot(male_flow, aes(x = month_year, y = perc_male, colour = facility_type)) +
 #   geom_point() +
 #   geom_line()
+
