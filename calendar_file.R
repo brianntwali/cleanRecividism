@@ -81,11 +81,12 @@ compare_dates <- function(date_one, date_two) {
 cc_counts_dt_sorted_desc <- setorder(copy(cc_counts_dt), -status_date)
 cc_counts_dt_sorted_asc <- setorder(copy(cc_counts_dt), status_date)
 
-get_prev_status_date <- function(ID, max_date) {
+get_prev_status_date <- function(dt_input, max_date) {
   max_date <- as.Date(strptime(max_date, format = '%m%d%Y'))
   # select move records with associated parameters
-  status_input <- cc_counts_dt_sorted_desc[(control_number == ID & status_date < max_date), status_date][1]
-  
+
+  status_input <- dt_input[(status_date < max_date), status_date][1]
+
   if (anyNA(status_input)) { 
     status_input <- NULL 
   } 
@@ -97,13 +98,18 @@ get_prev_status_date <- function(ID, max_date) {
 
 
 # Tests for function
-# print(get_prev_status_date('004037', '10022012'))
+# print(get_prev_status_date((cc_counts_dt_sorted_desc %>% 
+#                               filter(control_number == '004037')),
+#                            '10022012'))
+# print(get_prev_status_date((cc_counts_dt_sorted_desc %>% 
+#                               filter(control_number == '004037')),
+#                            '05032011'))
 # print(get_prev_status_date('004037', '05032011'))
 
-get_next_status_date <- function(ID, min_date) {
+get_next_status_date <- function(dt_input, min_date) {
   min_date <- as.Date(strptime(min_date, format = '%m%d%Y'))
   # select move records with associated parameters
-  status_input <- cc_counts_dt_sorted_asc[(control_number == ID & status_date > min_date), status_date][1]
+  status_input <- dt_input[(status_date > min_date), status_date][1]
   
   if (anyNA(status_input)) { 
     status_input <- NULL 
@@ -122,51 +128,27 @@ get_next_status_date <- function(ID, min_date) {
 # Precompute sorted data tables
 cc_counts_dt_sorted_id_desc <- setorder(copy(cc_counts_dt), -movement_id)
 
-check_mov_IDs <- function(ID, check_date) {
+check_mov_IDs <- function(dt_input, check_date) {
   # creating a vector of the associated movement IDs
-  mov_IDs <- cc_counts_dt_sorted_id_desc[(control_number == ID & status_date == as.Date(strptime(check_date, format = '%m%d%Y'))), movement_id]
+  mov_IDs <- dt_input[(status_date == as.Date(strptime(check_date, format = '%m%d%Y'))), movement_id]
 }
+
+
 
 # Test for function
 # print(check_mov_IDs('003636', '10042012'))
 # print(check_mov_IDs('003636', '11062012'))
 
-# print(unique(cc_counts_df$status_code))
-# count(is.na(cc_counts_df$status_code))
-
 # Questions: UDSC, "TRGH" * "PTCE" *  
 # "ESCP" * "ERR" * (714 days, 3 errors)  "TRTC" *  
 
-# check_status_and_ID <- function(ID, check_date, mov_ID) {
-#   temp_dt <- cc_counts_dt
-#   # select status of the move record with associated parameters
-#   status_input <- temp_dt[(control_number == ID & status_date  == as.Date(strptime(check_date, format = '%m%d%Y')) & movement_id == mov_ID), status_code][1]
-#   # the resident is now in correctional facility (1)
-#   if(status_input == 'TRSC') {
-#     loc_code <- -1
-#   }
-#   # the resident is no longer in a CCC/CCF (dead, in correctional facility, escaped or paroled) (6)
-#   else if(status_input %in% c('ESCP', 'DECN', 'DECX', 'DECA', 'DECS', 'ABSC')) {
-#     loc_code <- -2
-#   }
-#   # code for temporary leave (13)
-#   else if (status_input %in% c('TTRN', 'TRRC', 'DBOA', 'AWDT', 'DPWT', 'HOSP', 'AWOL', 'ATA', 'AWTR', 'AWDN', 'AWNR', 'PEND', 'PREJ', 'PWTH', 'DC2P')) {
-#     loc_code <- -3
-#   }
-#   # code for release to street (2)
-#   else if (status_input %in% c('SENC', 'PTST')) {
-#   }
-#   # all other codes do not result in a change of residence
-#   # including INRS, TRRC, PRCH, RTRS, DPWF (5)
-#   else {
-#     loc_code <- temp_dt[(control_number == ID & status_date  == as.Date(strptime(check_date, format = '%m%d%Y')) & movement_id == mov_ID), location_from_code][1]
-#   }
-# }
 
-check_status_and_ID <- function(ID, check_date, mov_ID) {
-  temp_dt <- cc_counts_dt
+
+# POSSIBLE CHANGE: passing the filtered datatable to check_status_and_ID?
+
+check_status_and_ID <- function(dt_input, check_date, mov_ID) {
   # select status of the move record with associated parameters
-  status_input <- temp_dt[(control_number == ID & status_date  == as.Date(strptime(check_date, format = '%m%d%Y')) & movement_id == mov_ID), status_code][1]
+  status_input <- dt_input[(status_date  == as.Date(strptime(check_date, format = '%m%d%Y')) & movement_id == mov_ID), status_code][1]
   
   if (length(status_input) == 0 || is.na(status_input)) {
     print("status_input is NA or length 0")
@@ -190,16 +172,15 @@ check_status_and_ID <- function(ID, check_date, mov_ID) {
     loc_code <- -4
   }
   # all other codes do not result in a change of residence
-  # including INRS, TRRC, PRCH, RTRS, DPWF, 'TRRC' (5)
+  # including INRS, TRRC, PRCH, RTRS, DPWF (5)
   else {
-    loc_code <- temp_dt[(control_number == ID & status_date  == as.Date(strptime(check_date, format = '%m%d%Y')) & movement_id == mov_ID), location_from_code][1]  
+    loc_code <- dt_input[(status_date  == as.Date(strptime(check_date, format = '%m%d%Y')) & movement_id == mov_ID), location_from_code][1]  
   }
   
   if (length(loc_code) == 0 || is.na(loc_code)) {
     print("loc_code is NA or length 0")
     loc_code <- NA
   }
-  
   return(loc_code)
 }
 
@@ -210,82 +191,40 @@ check_status_and_ID <- function(ID, check_date, mov_ID) {
 
 # Main function
 
-# populate_IDs <- function(ID, check_date, end_date) {
-#   
-#   
-#   created_df <- data.frame(ID = ID, stringsAsFactors = FALSE)
-#   
-#   row.names(created_df) <- created_df$ID
-#   
-#   # Convert checking_date and ending_date to Date objects
-#   
-#   print(paste0('working on ID: ', ID))
-#   
-#   prev_status_date <- get_prev_status_date(ID, check_date)
-#   
-#   next_status_date <- get_next_status_date(ID, check_date)
-#   
-#   # Updating center 
-#   
-#   # should it be -5?? Or 0?	
-#   current_loc <- -5
-#   
-#   while (compare_dates(end_date, check_date)) {
-#     if (!is.null(prev_status_date)) {
-#       check_mov_IDs_res <- check_mov_IDs(ID, prev_status_date)
-#       current_loc <- check_status_and_ID(ID, prev_status_date, check_mov_IDs_res[1])
-#     }
-#     
-# 
-#     # To fill remaining days with appropriate code after an ID has no more 
-#     # remaining records after 'check_date'
-#     if(is.null(get_next_status_date(ID, check_date))) {
-#       while (compare_dates(end_date, check_date)) {
-#         created_df[ID, check_date] <- current_loc
-#         check_date <- increment_date(check_date)
-#       }
-#     }
-#     
-#     else {
-#       while (compare_dates(next_status_date, check_date) && compare_dates(end_date, check_date)) {
-#         created_df[ID, check_date] <- current_loc
-#         check_date <- increment_date(check_date)
-#       }
-#       
-#       # update prev_status_date to check_date 
-#       prev_status_date <- check_date
-#       
-#       # update next_status_date with get_next_status_date( )
-#       next_status_date <- get_next_status_date(ID, check_date)
-#     }
-#   }
-#   print("Done!")
-#   return(created_df)
-# }
+
+
+
 
 populate_IDs <- function(ID, check_date, end_date) {
   tryCatch({
     created_df <- data.frame(ID = ID, stringsAsFactors = FALSE)
     row.names(created_df) <- created_df$ID
     
-    prev_status_date <- get_prev_status_date(ID, check_date)
-    next_status_date <- get_next_status_date(ID, check_date)
+    # POSSIBLE CHANGE: adding a cc_count_ID_sort <- cc_count_ID_sort[(control_number == ID)]
+    
+    filtered_cc_desc <-  cc_counts_dt_sorted_desc[(control_number == ID)]
+    filtered_cc_asc <-  cc_counts_dt_sorted_asc[(control_number == ID)]
+    filtered_cc_ID <-  cc_counts_dt_sorted_id_desc[(control_number == ID)]
+    
+    prev_status_date <- get_prev_status_date(filtered_cc_desc, check_date)
+    next_status_date <- get_next_status_date(filtered_cc_asc, check_date)
     current_loc <- -5
     
     while (compare_dates(end_date, check_date)) {
       if (!is.null(prev_status_date)) {
-        check_mov_IDs_res <- check_mov_IDs(ID, prev_status_date)
+        
+        check_mov_IDs_res <- check_mov_IDs(filtered_cc_ID, prev_status_date)
         if (length(check_mov_IDs_res) == 0) {
           stop("check_mov_IDs_res is empty")
         }
-        current_loc <- check_status_and_ID(ID, prev_status_date, check_mov_IDs_res[1])
+        current_loc <- check_status_and_ID(filtered_cc_ID, prev_status_date, check_mov_IDs_res[1])
       }
       
       if (is.null(current_loc)) {
         stop("current_loc is NULL")
       }
       
-      if (is.null(get_next_status_date(ID, check_date))) {
+      if (is.null(get_next_status_date(filtered_cc_asc, check_date))) {
         while (compare_dates(end_date, check_date)) {
           created_df[ID, check_date] <- current_loc
           check_date <- increment_date(check_date)
@@ -296,7 +235,7 @@ populate_IDs <- function(ID, check_date, end_date) {
           check_date <- increment_date(check_date)
         }
         prev_status_date <- check_date
-        next_status_date <- get_next_status_date(ID, check_date)
+        next_status_date <- get_next_status_date(filtered_cc_asc, check_date)
       }
     }
     return(created_df)
@@ -322,19 +261,22 @@ unique_IDs_2 <- na.omit(unique_IDs_2)
 # There are 6 unique IDs
 length(unique_IDs_2)
 
-unique_IDs_2
 
 # apply
 #  user  system elapsed 
 # 14.847   0.650  15.517 (Jun 18th 2:50 pm)
 # user  system elapsed 
 # 12.180   0.558  12.780 (Jun 18th 3:00 pm)
- system.time({
+ 
+
+system.time({
   list_of_dts_2 <- lapply(unique_IDs_2, populate_IDs, check_date = '01012008', end_date = '01012021')
- final_dt_2 <- Reduce(rbind, list_of_dts_2)
+  final_dt_2 <- Reduce(rbind, list_of_dts_2)
  })
 
- View(final_dt_2)
+
+View(list_of_dts_2[[1]])
+View(final_dt_2)
  
  write.csv(final_dt_2, 'attemp1.csv')
 # mclapply
@@ -381,4 +323,68 @@ sampling <- sort(sampling)
 list_of_dts <- lapply(sampling, populate_IDs, check_date = '01012008', end_date = '01012021')
 calendar_file_use <- Reduce(rbind, list_of_dts)
 
+
 write_csv(calendar_file_use, "calendar_file_use.csv")
+
+
+View(calendar_file_use)
+
+# Set the first column as row names
+rownames(calendar_file_use) <- calendar_file_use[, 1]
+# Remove the first column from the DataFrame
+calendar_file_use <- calendar_file_use[, -1]
+
+
+# function to get location for one ID and one date and enter into add_df 
+get_id_m_yr_data <- function(input_id, input_cal_file, input_date) {
+  # Extract the value
+  value <- as.numeric(input_cal_file[input_id, input_date])
+  
+  # Check if the value is positive
+  if (!is.na(value) && value > 0) {
+    # Create a DataFrame with the necessary information
+    add_df <- data.frame(m_yr = input_date, loc = input_cal_file[input_id, input_date], ID = input_id, stringsAsFactors = FALSE)
+    return(add_df)
+  } else {
+    # Return an empty DataFrame if the value is not positive
+    return(data.frame())
+  }
+}
+
+# # Test the function
+# test_df1 <- get_id_m_yr_data('069573', calendar_file, '01142008')
+# 
+# # View the result
+# View(test_df1)
+
+
+# function to create a particular month-year's associated rows
+collect_m_yr_data <- function(m_yr_rows, ids, cal_file) {
+  list_ids_dfs <- lapply(ids, get_id_m_yr_data, input_cal_file = cal_file, input_date = m_yr_rows)
+  fill_df_for_m_yr <- Reduce(rbind, list_ids_dfs)
+}
+
+# test
+# test_list_ids <- rownames(calendar_file)
+# test_df2 <- collect_m_yr_data('01142008', test_list_ids, calendar_file)
+
+# function to create range of years to operate on
+create_yrs <- function() {
+  date_sequence <- seq(as.Date("2008-01-01"), as.Date("2020-12-12"), by = "month")
+  # Format the dates as MMDDYYYY
+  formatted_dates <- format(date_sequence, "%m%d%Y")
+  return(formatted_dates)
+}
+
+# main function to populate the month-year dataframe
+pop_m_yr_df <- function(og_cal_file) {
+  years <- create_yrs()
+  extracted_ids <- rownames(og_cal_file)
+  list_of_dfs <- lapply(years, collect_m_yr_data, ids = extracted_ids, cal_file = og_cal_file)
+  m_yr_df <- Reduce(rbind, list_of_dfs) 
+  return(m_yr_df)
+}
+
+# run main function
+test_df4 <- pop_m_yr_df(calendar_file_use)
+View(test_df4)

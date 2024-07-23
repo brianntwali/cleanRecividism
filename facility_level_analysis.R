@@ -232,8 +232,10 @@ comparison_sum <- comparison %>%
 comparison_sum
 # adding program (incomplete)
 
+View(comparison)
 
 unique_programs <- ccc_moves %>% 
+
   distinct(program_code) %>% 
   pull(program_code)
 
