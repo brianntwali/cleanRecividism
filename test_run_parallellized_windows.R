@@ -23,9 +23,9 @@ populate_IDs2 <- function(x){
   return(populate_IDs(x, check_date = '01012008', end_date = '01012021'))
 }
 # Check if the dataset is available on all worker nodes. Use for diagnostics
-#check_dataset <- function(dataset) {
-#  exists(dataset, where = .GlobalEnv)
-#}
+check_dataset <- function(dataset) {
+  exists(dataset, where = .GlobalEnv)
+}
 
 # Export the required libraries and functions to each worker node
 
@@ -47,15 +47,18 @@ clusterCall(cl,load_packages,export_packages)
 # Export datasets and functions to cluster
 clusterExport(cl, c(export_datasets,export_fns))
 
-#Run paralleled code to populate_IDs              
-result <- parLapply(cl, unique_IDs, populate_IDs2)
+#Run paralleled code to populate_IDs
+system.time({
+  result <- parLapply(cl, unique_IDs, populate_IDs2)
+})
+
+write_csv(result,"C:/Users/silveus/Documents/PA DOC/intermediate data/TEMP_result.csv")
 final_calendar_file <- Reduce(rbind, result)
+
 
 # Diagnostic to check whether a dataset is present on worker nodes (cores)
 #clusterEvalQ(cl, check_dataset("cc_counts_dt"))
 
-# end cluster to free up cores
-stopCluster(cl)
 
 
   # OLD -NAS 7/22/24
@@ -72,7 +75,7 @@ stopCluster(cl)
 rownames(final_calendar_file) <- final_calendar_file[, 1]
 # Remove the first column from the dataframe
 final_calendar_file <- final_calendar_file[, -1]
-
+write_csv(final_calendar_file,"C:/Users/silveus/Documents/PA DOC/intermediate data/calander_file.csv")
 
 # Creating main dataframe -------------------------------------------------
 
@@ -81,37 +84,79 @@ unique_facilities <- ccc_cohort %>%
   select(center_code, facility, region_code)
 
 
-main_df <- pop_m_yr_df(final_calendar_file)
+#main_df <- pop_m_yr_df(final_calendar_file)
+system.time({
+  main_df <- parLapply(cl,final_calendar_file,pop_m_yr_df)
+})
+write_csv(main_df,"C:/Users/silveus/Documents/PA DOC/intermediate data/main_df.csv")
 print("Function 2 Complete")
 
-main_df_complete <- main_df %>% 
-  rowwise() %>%
-  mutate(
-    age = get_age(ID, m_yr),
-    lsir = get_lsir(ID, m_yr), 
-    race = get_race(ID),
-    sex = get_sex(ID),
-    facility_type = get_facility_type(loc),
-    facility_region = get_facility_region(loc)
-  )  %>%
-  ungroup()
+get_demos_fn <- function(dataframe){
+  return(dataframe %>% 
+    rowwise() %>%
+    mutate(
+      age = get_age(ID, m_yr),
+      lsir = get_lsir(ID, m_yr), 
+      race = get_race(ID),
+      sex = get_sex(ID),
+      facility_type = get_facility_type(loc),
+      facility_region = get_facility_region(loc)
+    )  %>%
+    ungroup())
+}
+
+# main_df_complete <- main_df %>% 
+#   rowwise() %>%
+#   mutate(
+#     age = get_age(ID, m_yr),
+#     lsir = get_lsir(ID, m_yr), 
+#     race = get_race(ID),
+#     sex = get_sex(ID),
+#     facility_type = get_facility_type(loc),
+#     facility_region = get_facility_region(loc)
+#   )  %>%
+#   ungroup()
+
+main_df_complete <- parLapply(cl,main_df,get_demos_fn)
+write_csv(main_df_complete,"C:/Users/silveus/Documents/PA DOC/intermediate data/main_complete_df.csv")
 print("Function 3 Complete")
 
-main_comparison_df <- main_df_complete %>% 
-  group_by(loc, m_yr) %>% 
-  summarize(
-    avg_lsir = mean(lsir, na.rm = TRUE),
-    avg_age = mean(age, na.rm = TRUE),
-    perc_black = round(mean(race == 'BLACK') * 100, 3), 
-    perc_male = round(mean(sex == 'MALE') * 100, 3),
-    pop_count = n(),
-    facility_type = first(facility_type), 
-    facility_region = first(facility_region),  
-    across(starts_with("facility_type_"), first),  
-    across(starts_with("facility_region_"), first)
+get_comparisons <- function(dataset){
+  return(dataset %>% 
+           group_by(loc, m_yr) %>% 
+           summarize(
+             avg_lsir = mean(lsir, na.rm = TRUE),
+             avg_age = mean(age, na.rm = TRUE),
+             perc_black = round(mean(race == 'BLACK') * 100, 3), 
+             perc_male = round(mean(sex == 'MALE') * 100, 3),
+             pop_count = n(),
+             facility_type = first(facility_type), 
+             facility_region = first(facility_region),  
+             across(starts_with("facility_type_"), first),  
+             across(starts_with("facility_region_"), first))
   )
+}
 
+system.time({
+  main_comparison_df <- parLapply(cl,main_df_complete,get_comparisons)
+})
+write_csv(main_comparison_df,"C:/Users/silveus/Documents/PA DOC/intermediate data/main_comparison_df.csv")
 print("Function 4 Complete")
+# main_comparison_df <- main_df_complete %>% 
+#   group_by(loc, m_yr) %>% 
+#   summarize(
+#     avg_lsir = mean(lsir, na.rm = TRUE),
+#     avg_age = mean(age, na.rm = TRUE),
+#     perc_black = round(mean(race == 'BLACK') * 100, 3), 
+#     perc_male = round(mean(sex == 'MALE') * 100, 3),
+#     pop_count = n(),
+#     facility_type = first(facility_type), 
+#     facility_region = first(facility_region),  
+#     across(starts_with("facility_type_"), first),  
+#     across(starts_with("facility_region_"), first)
+#   )
+# print("Function 4 Complete")
+
 
 main_comparison_summary <- main_comparison_df %>% 
   select(!c(loc, m_yr)) %>%
@@ -143,4 +188,8 @@ print("Function 5 Complete")
 #     across(starts_with("facility_type_"), first),  
 #     across(starts_with("facility_region_"), first)
 #   )
+
+# end cluster to free up cores
+stopCluster(cl)
+
 # 
