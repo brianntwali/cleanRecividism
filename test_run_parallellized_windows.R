@@ -22,6 +22,7 @@ cl <- makeCluster(num_cores)
 populate_IDs2 <- function(x){
   return(populate_IDs(x, check_date = '01012008', end_date = '01012021'))
 }
+
 # Check if the dataset is available on all worker nodes. Use for diagnostics
 check_dataset <- function(dataset) {
   exists(dataset, where = .GlobalEnv)
@@ -49,26 +50,28 @@ clusterExport(cl, c(export_datasets,export_fns))
 
 #Run paralleled code to populate_IDs
 system.time({
-  result <- parLapply(cl, unique_IDs, populate_IDs2)
+  batch_size <- 1000
+  num_batches <- ceiling(length(unique_IDs)/batch_size)
+  
+  for (i in seq_len(num_batches)){
+    start_index <- (i-1)*batch_size+1
+    end_index <- min(i*batch_size, length(unique_ID))
+    subset_ids <- unique_IDs[start_index:end_index]
+    
+    result_subset <- parLapply(cl, subset_ids, populate_IDs2) %>% do.call(rbind())
+    saveRDS(result_subset, file = paste0("C:/Users/silveus/Documents/PA DOC/intermediate data/result_",start_index,"_to_",end_index,".rds"))  
+  }
 })
 
-write_csv(result,"C:/Users/silveus/Documents/PA DOC/intermediate data/TEMP_result.csv")
-final_calendar_file <- Reduce(rbind, result)
+# Combine saved results into a single object if needed
+final_calendar_file <- data.frame()
+for (i in seq_len(num_batches)) {
+  start_index <- (i - 1) * batch_size + 1
+  end_index <- min(i*batch_size, length(unique_ID))
+  result_subset <- readRDS(paste0("C:/Users/silveus/Documents/PA DOC/intermediate data/result_",start_index,"_to_",end_index,".rds"))
+  final_calendar_file <- rbind(final_calendar_file, result_subset)
+}
 
-
-# Diagnostic to check whether a dataset is present on worker nodes (cores)
-#clusterEvalQ(cl, check_dataset("cc_counts_dt"))
-
-
-
-  # OLD -NAS 7/22/24
-  # numberOfCores <- detectCores()
-  # system.time({
-  #   final_list_of_dts <- mclapply(unique_IDs, populate_IDs, check_date = '01012008', end_date = '01012021')
-  #   final_calendar_file <- Reduce(rbind, final_list_of_dts)
-  # })
-  # 
-  # View(final_list_of_dts)
 
 
 # Set the first column as row names
