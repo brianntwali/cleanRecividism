@@ -1,0 +1,91 @@
+---
+title: "Main Analysis"
+output:
+  html_document:
+    df_print: paged
+---
+
+Load libraries
+```{r}
+library(stargazer)
+library(haven)
+library(dplyr)
+library(lfe)
+library(ggplot2)
+library(htmltools)
+
+```
+
+
+```{r}
+mtcars %>% View()
+```
+
+```{r}
+mtcars %>% group_by(mpg,cyl) %>% summarise(count=n(), .groups = 'drop') %>% View()
+```
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+
+
+
+Define filepaths
+```{r}
+# encrypted drive path
+# Brian
+#encripted_drive_path <- "/Volumes/Untitled/PA DOC/"
+ 
+# Neil mac
+encripted_drive_path <- "/Users/silveus/Documents/Data/PA DOC/" 
+# Neil PC 
+#encripted_drive_path <- "" 
+
+# analysis path
+analysis_datapath <- paste0(encripted_drive_path,"/analysis data")
+ 
+
+```
+
+
+
+Import analysis data
+```{r}
+indiv_arrival_reg_data <- read.csv(paste0(analysis_datapath,"FILENAME"))
+facility_a
+```
+
+
+
+
+How do arrivals to CCFs compare to arrivals to CCCs prior to 2013? The below requires a dataset for analysis that has a dummy variable for post (>= 2013) and a dummy variable for ccf(1 if ccf, 0 if ccc). The dataset should be individual arrivals.
+```{r}
+balancereg1 <- felm(lsir~ccf,reg_data[reg_data$post==0])
+balancereg2 <- felm(black~ccf,reg_data[reg_data$post==0])
+balancereg3 <- felm(age~ccf,reg_data[reg_data$post==0])
+balancereg4 <- felm(drugoffence~ccf,reg_data[reg_data$post==0])
+balancereg5 <- felm(violentoffence~ccf, reg_data[reg_data$post==0])
+balancereg6 <- felm(arrivals <- ccf, reg_data[reg_data$post==0] %>% 
+                                                group_by(loc,month) %>% 
+                                                summarise(arrivals=n()),
+                                                          ccf=first(ccf),
+                                                          post=first(post))
+
+
+htmloutput <- stargazer(balangereg1,balangereg2,balangereg3,balangereg4,balangereg5,balancereg6, type = "html")
+
+html_print(HTML(htmloutput))
+```
+
+Baseline DID
+```{r}
+reg1 <- felm(lsir ~ ccf + post + ccf*post year region avenumberarrivals2008_2010 avelsir2008_2010  |loc + year + calandermonth|0|0, data=reg_data)
+reg2 <- felm(lsir ~ ccf + post + ccf*post |loc + year + calandermonth|0|0, data=reg_data)
+```
+
+
