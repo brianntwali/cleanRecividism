@@ -346,24 +346,24 @@ create_variable_flow <- function(df, period_set, var_name) {
       period_group = start_date + months((period_group - 1) * period_set)
     ) %>%
     as.data.frame()
-  
-  date_breaks_string <- paste0(period_set, " month")
-  
-  # , colour = facility_type
+ 
+    date_breaks_string <- "1 year"
+    date_labels_string <- "%Y"
+ 
   plot <- ggplot(binned_df, aes(x = period_group, y = .data[[var_name]], colour = facility_type)) +
     geom_point() +
     geom_line() +
     scale_x_date(name = "Group Period", date_breaks = date_breaks_string, 
-                 date_labels = "%Y-%m")
+                 date_labels = date_labels_string) 
   
   print(plot)
   
   return(binned_df)
 }
 
-lsir_flow <- create_variable_flow(arrivals_floored, 2, 'avg_lsir')
+lsir_flow <- create_variable_flow(arrivals_floored, 6, 'avg_lsir')
 
-
+race_flow <- create_variable_flow(arrivals_floored, 3, 'perc_black')
 
 
 # lsir_flow <- arrivals_floored %>% 

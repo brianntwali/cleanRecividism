@@ -10,7 +10,13 @@
 # install.packages("schoolmath")
 # install.packages("stringr")
 # install.packages("gtsummary")
-library(gtsummary)
+# install.packages("multidplyr")
+# install.packages("furrr")
+
+library("multidplyr")
+library("furrr")
+library("parallel")
+library("gtsummary")
 library("stringr")
 library("schoolmath")
 library("data.table")
@@ -55,6 +61,7 @@ sentencing <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentifie
 
 lsir <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentified.xlsx"),sheet = "lsir")
 
+num_cores <- detectCores() - 1 
 
 
 # Creating base dataframe for analysis ------------------------------------
@@ -86,8 +93,8 @@ get_id_m_yr_data <- function(input_id, input_cal_file, input_date) {
 
 # function to create a particular month-year's associated rows
 collect_m_yr_data <- function(m_yr_rows, ids, cal_file) {
-  list_ids_dfs <- lapply(ids, get_id_m_yr_data, input_cal_file = cal_file, input_date = m_yr_rows)
-  fill_df_for_m_yr <- Reduce(rbind, list_ids_dfs)
+  list_ids_dfs <- mclapply(ids, get_id_m_yr_data, input_cal_file = cal_file, input_date = m_yr_rows)
+  fill_df_for_m_yr <- do.call(rbind, list_ids_dfs)
 }
 
 # test
@@ -106,14 +113,14 @@ create_yrs <- function() {
 pop_m_yr_df <- function(og_cal_file) {
   years <- create_yrs()
   extracted_ids <- rownames(og_cal_file)
-  list_of_dfs <- lapply(years, collect_m_yr_data, ids = extracted_ids, cal_file = og_cal_file)
-  m_yr_df <- Reduce(rbind, list_of_dfs) 
+  list_of_dfs <- mclapply(years, collect_m_yr_data, ids = extracted_ids, cal_file = og_cal_file)
+  m_yr_df <- do.call(rbind, list_of_dfs) 
   return(m_yr_df)
 }
 
 # run main function
-test_df3 <- pop_m_yr_df(calendar_file)
-View(test_df3)
+m_yr_df <- pop_m_yr_df(calendar_file)
+View(m_yr_df)
 
 
 
@@ -163,13 +170,13 @@ get_sex <- function(id) {
   return(id_sex)
 }
 
-unique_facilities <- ccc_cohort %>% 
+unique_facilities_df <- ccc_cohort %>% 
   distinct(facility, .keep_all = TRUE) %>% 
   select(center_code, facility, region_code)
 
 
 get_facility_type <- function(loc) {
-  facility <- unique_facilities %>% 
+  facility <- unique_facilities_df %>% 
     filter(center_code == loc) %>% 
     pull(facility)
   
@@ -182,31 +189,117 @@ get_facility_type <- function(loc) {
 }
 
 get_facility_region <- function(loc) {
-  reg_code <- unique_facilities %>% 
+  reg_code <- unique_facilities_df %>% 
     filter(center_code == loc) %>% 
     pull(region_code)
   return(reg_code)
 }
 
 
+
+# I am unsure if this will all work well if the dates are alreay floored 
+
+unique_programs <- ccc_moves %>% 
+  distinct(program_code) %>% 
+  filter(!is.na(program_code) & !(program_code == 'NULL')) %>% 
+  pull(program_code)
+
+get_program <- function(id, current_date) {
+  form_current_date <- as.Date(strptime(current_date, format = '%m%d%Y'))
+  
+  # Filter rows based on control_number and date, then arrange by date
+  date_filtered <- ccc_moves %>% 
+    filter(control_number == id & as.Date(status_date, format = '%Y-%m-%d') < form_current_date) %>%
+    arrange(desc(as.Date(status_date, format = '%Y-%m-%d')))
+  
+  nearest_movement_id <- date_filtered %>% 
+    arrange(desc(movement_id)) %>% 
+    distinct(control_number, .keep_all = TRUE) %>% 
+    pull(movement_id)
+  
+  if(length(nearest_movement_id) > 0) {
+    # Filter to get all rows with the identified duplicate movement_id
+    all_programs <- date_filtered %>%
+      filter(movement_id == nearest_movement_id) %>% 
+      pull(program_code)
+    
+    return(all_programs)
+  } 
+  # add condition for when program is associated with unique movement id
+  
+  else {
+    return(character(0)) 
+    }
+}
+
+# Test
+print(get_program('001165', '10042005'))
+print(get_program('004042', '12162010'))
+print(get_program('004042', '19162010'))
+
+
+View(ccc_moves %>% 
+       filter(control_number == '001165') %>% 
+       arrange(status_date, movement_id) %>% 
+       select(control_number, status_date, movement_id, program_code, program_description, status_code)) 
+
+
 # Adding further data to df -----------------------------------------------
 
-df_complete <- test_df3 %>% 
+# Define the cluster
+cluster <- new_cluster(parallel::detectCores() - 2)
+
+# Load necessary libraries on each worker
+cluster_library(cluster, c('tidyverse', 'furrr'))
+
+# Copy required objects to each worker
+cluster_copy(cluster, c('get_age', 'get_lsir', 'get_race', 'get_sex', 'get_facility_type', 'get_facility_region', 'get_program', 'ccc_moves', 'demographics', 'lsir', 'm_yr_df', 'unique_facilities_df'))
+
+
+
+View(m_yr_df)
+
+df_complete <- m_yr_df %>% 
   rowwise() %>%
+  partition(cluster) %>% 
   mutate(
+    lsir = get_lsir(ID, m_yr),
     age = get_age(ID, m_yr),
-    lsir = get_lsir(ID, m_yr), 
     race = get_race(ID),
     sex = get_sex(ID),
     facility_type = get_facility_type(loc),
-    facility_region = get_facility_region(loc)
+    facility_region = get_facility_region(loc),
+    programs = list(get_program(ID, m_yr))
   )  %>%
-  ungroup()
+  ungroup() %>% 
+  collect()
 
 
 View(df_complete)
 
-nrow(df_complete)
+
+# Creating a data frame with new columns for each unique program code initialized to 0
+new_columns <- setNames(as.data.frame(matrix(0, nrow = nrow(df_complete), ncol = length(unique_programs))),
+                        paste0("prog_", unique_programs))
+
+# Binding the new columns to the original data frame
+df_complete_program <- bind_cols(df_complete, new_columns)
+
+
+View(df_complete_program)
+
+# Populating the columns with dummy variables
+df_complete_program <- df_complete_program %>%
+  rowwise() %>%
+  mutate(across(starts_with("prog_"), ~{
+    programs <- get_program(ID, m_yr)
+    prefixed_programs <- paste0("prog_", programs)
+    if (cur_column() %in% prefixed_programs) 1 else 0
+  })) %>%
+  ungroup()
+
+
+nrow(df_complete_program)
 
 
 # Summary statistics by facility type 
@@ -234,16 +327,7 @@ comparison_sum
 
 View(comparison)
 
-unique_programs <- ccc_moves %>% 
 
-  distinct(program_code) %>% 
-  pull(program_code)
-
-length(unique_programs)
-
-get_program <- function(id, current_date) {
-  
-}
 
 
 # adding offense code bucket (problem with not enough sentencings?) (incomplete)
@@ -295,69 +379,5 @@ View(facility_analysis)
 
 
 # not using rowwise() produces inaccurate results
-# df_with_age <- test_df3 %>% 
-#   rowwise() %>%
-#   mutate(
-#     age = get_age(ID, m_yr),
-#     lsir = get_lsir(ID, m_yr)
-#   )  %>%
-#   ungroup()
-
-# tests
-# print(get_lsir('079755', '01012008'))
-# print(get_lsir('094683', '01012008'))
-# 
-# df_with_lsir <- df_with_age %>% 
-#   rowwise() %>%
-#   mutate(
-#     lsir = get_lsir(ID, m_yr)
-#   )  %>%
-#   ungroup()
-# 
-# View(df_with_lsir)
-
-# adding race (later -> % black)
-
-
-
-# df_with_race <- df_with_age %>% 
-#   rowwise() %>%
-#   mutate(
-#     race = get_race(ID)
-#   )  %>%
-#   ungroup()
-# 
-# View(df_with_race)
-
-
-# adding sex
-# (later -> % male) (20,000 records, duplicate entries and all, are female in demographic)
-
-
-# df_with_sex <- df_with_race %>% 
-#   rowwise() %>%
-#   mutate(
-#     sex = get_sex(ID)
-#   )  %>%
-#   ungroup()
-# 
-# 
-# View(df_with_sex)
-
-
-# Adding CCC/CCF and region
-
-
-
-# df_with_CCF_region <- df_with_sex %>% 
-#   rowwise() %>%
-#   mutate(
-#     facility_type = get_facility_type(loc),
-#     facility_region = get_facility_region(loc)
-#   )  %>%
-#   ungroup()
-
-# 
-# View(df_with_CCF_region)
 
 

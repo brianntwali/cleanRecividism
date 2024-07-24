@@ -43,7 +43,8 @@ INRS_moves <- ccc_moves %>%
   select(c('control_number', 'status_date', 'location_from_code')) 
   
  
-View(INRS_moves)
+View(INRS_moves %>% 
+       arrange(status_date))
 
 get_lsir_2 <- function(id, current_date) {
   form_current_date <- as.Date(current_date, format = '%Y-%m-%d')
@@ -74,6 +75,9 @@ INRS_codes <- INRS_moves %>%
 
 disjoint1 <- setdiff(INRS_codes, unique_facilities_codes)
 
+unique_facilities <- ccc_cohort %>% 
+  distinct(facility, .keep_all = TRUE) %>% 
+  select(center_code, facility, region_code)
 
 
 get_facility_type <- function(loc) {
@@ -89,6 +93,7 @@ get_facility_type <- function(loc) {
   }
 }
 
+
 INRS_with_lsir <- INRS_moves %>%
   filter(!(location_from_code %in% disjoint1)) %>% 
   rowwise() %>%
@@ -99,7 +104,9 @@ INRS_with_lsir <- INRS_moves %>%
   ungroup()
 
 
-View(INRS_with_lsir)     
+View(INRS_with_lsir %>% 
+       filter(type == 'CCC' & year(status_date) == 2008) %>% 
+       arrange(desc(status_date)))     
 
 lsir_flow <- INRS_with_lsir %>% 
   mutate(
@@ -114,9 +121,28 @@ lsir_flow <- INRS_with_lsir %>%
   mutate(month_year=ymd(month_year)) %>% 
   as.data.frame()
 
+lsir_flow_2 <- INRS_with_lsir %>% 
+  mutate(
+    month_year = floor_date(status_date, unit = 'month')
+  ) %>% 
+  filter(year(month_year) > 2007 & year(month_year) < 2021) %>% 
+  group_by(type, month_year) %>% 
+  summarise(
+    avg_lsir = mean(lsir, na.rm = TRUE)
+  ) %>% 
+  arrange(month_year) %>% 
+  mutate(month_year = ymd(month_year)) %>% 
+  ungroup() %>% 
+  as.data.frame()
 
 View(lsir_flow)
 
+View(lsir_flow_2)
+
 ggplot(lsir_flow, aes(x = month_year, y = avg_lsir, colour = type)) +
+  geom_point() +
+  geom_line()
+
+ggplot(lsir_flow_2, aes(x = month_year, y = avg_lsir, colour = type)) +
   geom_point() +
   geom_line()

@@ -179,6 +179,11 @@ final_UDSC_dt <- create_final_code_dt('UDSC')
 
 final_TRTC_dt <- create_final_code_dt('TRTC')
 
+# Observing Transfer Receiver (TRRC)
+
+final_TRRC_dt <- create_final_code_dt('TRRC')
+
+
 # Observing Transfer to State Correctional Institution (TRSC)
 
 final_TRSC_dt <- create_final_code_dt('TRSC')
