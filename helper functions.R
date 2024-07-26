@@ -99,10 +99,10 @@ cc_counts_dt_sorted_asc <- setorder(copy(cc_counts_dt), status_date)
 # Precompute sorted data tables
 cc_counts_dt_sorted_id_desc <- setorder(copy(cc_counts_dt), -movement_id)
 
-get_prev_status_date <- function(ID, max_date) {
+get_prev_status_date <- function(dt_input, max_date) {
   max_date <- as.Date(strptime(max_date, format = '%m%d%Y'))
   # select move records with associated parameters
-  status_input <- cc_counts_dt_sorted_desc[(control_number == ID & status_date < max_date), status_date][1]
+  status_input <- dt_input[(status_date < max_date), status_date][1]
   
   if (anyNA(status_input)) { 
     status_input <- NULL 
@@ -118,10 +118,10 @@ get_prev_status_date <- function(ID, max_date) {
 # print(get_prev_status_date('004037', '10022012'))
 # print(get_prev_status_date('004037', '05032011'))
 
-get_next_status_date <- function(ID, min_date) {
+get_next_status_date <- function(dt_input, min_date) {
   min_date <- as.Date(strptime(min_date, format = '%m%d%Y'))
   # select move records with associated parameters
-  status_input <- cc_counts_dt_sorted_asc[(control_number == ID & status_date > min_date), status_date][1]
+  status_input <- dt_input[(status_date > min_date), status_date][1]
   
   if (anyNA(status_input)) { 
     status_input <- NULL 
@@ -134,15 +134,14 @@ get_next_status_date <- function(ID, min_date) {
 }
 
 
-check_mov_IDs <- function(ID, check_date) {
+check_mov_IDs <- function(dt_input, check_date) {
   # creating a vector of the associated movement IDs
-  mov_IDs <- cc_counts_dt_sorted_id_desc[(control_number == ID & status_date == as.Date(strptime(check_date, format = '%m%d%Y'))), movement_id]
+  mov_IDs <- dt_input[(status_date == as.Date(strptime(check_date, format = '%m%d%Y'))), movement_id]
 }
 
-check_status_and_ID <- function(ID, check_date, mov_ID) {
-  temp_dt <- cc_counts_dt
+check_status_and_ID <- function(dt_input, check_date, mov_ID) {
   # select status of the move record with associated parameters
-  status_input <- temp_dt[(control_number == ID & status_date  == as.Date(strptime(check_date, format = '%m%d%Y')) & movement_id == mov_ID), status_code][1]
+  status_input <- dt_input[(status_date  == as.Date(strptime(check_date, format = '%m%d%Y')) & movement_id == mov_ID), status_code][1]
   
   if (length(status_input) == 0 || is.na(status_input)) {
     print("status_input is NA or length 0")
@@ -166,16 +165,15 @@ check_status_and_ID <- function(ID, check_date, mov_ID) {
     loc_code <- -4
   }
   # all other codes do not result in a change of residence
-  # including INRS, TRRC, PRCH, RTRS, DPWF, 'TRRC' (5)
+  # including INRS, TRRC, PRCH, RTRS, DPWF (5)
   else {
-    loc_code <- temp_dt[(control_number == ID & status_date  == as.Date(strptime(check_date, format = '%m%d%Y')) & movement_id == mov_ID), location_from_code][1]  
+    loc_code <- dt_input[(status_date  == as.Date(strptime(check_date, format = '%m%d%Y')) & movement_id == mov_ID), location_from_code][1]  
   }
   
   if (length(loc_code) == 0 || is.na(loc_code)) {
     print("loc_code is NA or length 0")
     loc_code <- NA
   }
-  
   return(loc_code)
 }
 
@@ -186,24 +184,31 @@ populate_IDs <- function(ID, check_date, end_date) {
     created_df <- data.frame(ID = ID, stringsAsFactors = FALSE)
     row.names(created_df) <- created_df$ID
     
-    prev_status_date <- get_prev_status_date(ID, check_date)
-    next_status_date <- get_next_status_date(ID, check_date)
+    # POSSIBLE CHANGE: adding a cc_count_ID_sort <- cc_count_ID_sort[(control_number == ID)]
+    
+    filtered_cc_desc <-  cc_counts_dt_sorted_desc[(control_number == ID)]
+    filtered_cc_asc <-  cc_counts_dt_sorted_asc[(control_number == ID)]
+    filtered_cc_ID <-  cc_counts_dt_sorted_id_desc[(control_number == ID)]
+    
+    prev_status_date <- get_prev_status_date(filtered_cc_desc, check_date)
+    next_status_date <- get_next_status_date(filtered_cc_asc, check_date)
     current_loc <- -5
     
     while (compare_dates(end_date, check_date)) {
       if (!is.null(prev_status_date)) {
-        check_mov_IDs_res <- check_mov_IDs(ID, prev_status_date)
+        
+        check_mov_IDs_res <- check_mov_IDs(filtered_cc_ID, prev_status_date)
         if (length(check_mov_IDs_res) == 0) {
           stop("check_mov_IDs_res is empty")
         }
-        current_loc <- check_status_and_ID(ID, prev_status_date, check_mov_IDs_res[1])
+        current_loc <- check_status_and_ID(filtered_cc_ID, prev_status_date, check_mov_IDs_res[1])
       }
       
       if (is.null(current_loc)) {
         stop("current_loc is NULL")
       }
       
-      if (is.null(get_next_status_date(ID, check_date))) {
+      if (is.null(get_next_status_date(filtered_cc_asc, check_date))) {
         while (compare_dates(end_date, check_date)) {
           created_df[ID, check_date] <- current_loc
           check_date <- increment_date(check_date)
@@ -214,14 +219,13 @@ populate_IDs <- function(ID, check_date, end_date) {
           check_date <- increment_date(check_date)
         }
         prev_status_date <- check_date
-        next_status_date <- get_next_status_date(ID, check_date)
+        next_status_date <- get_next_status_date(filtered_cc_asc, check_date)
       }
     }
     return(created_df)
   }, error = function(e) {
-    #cat("Error in processing ID:", ID, "Error message:", e$message, "\n")
-    message("An error occured: ",e$message)
-    return(5)
+    cat("Error in processing ID:", ID, "Error message:", e$message, "\n")
+    return(NULL)
   })
 }
 
@@ -254,8 +258,9 @@ get_id_m_yr_data <- function(input_id, input_cal_file, input_date) {
 
 # function to create a particular month-year's associated rows
 collect_m_yr_data <- function(m_yr_rows, ids, cal_file) {
+  # Switch to parapply?
   list_ids_dfs <- lapply(ids, get_id_m_yr_data, input_cal_file = cal_file, input_date = m_yr_rows)
-  fill_df_for_m_yr <- Reduce(rbind, list_ids_dfs)
+  fill_df_for_m_yr <- do.call(rbind, list_ids_dfs)
 }
 
 # test
@@ -274,8 +279,9 @@ create_yrs <- function() {
 pop_m_yr_df <- function(og_cal_file) {
   years <- create_yrs()
   extracted_ids <- rownames(og_cal_file)
+  # Switch to parapply?
   list_of_dfs <- lapply(years, collect_m_yr_data, ids = extracted_ids, cal_file = og_cal_file)
-  m_yr_df <- Reduce(rbind, list_of_dfs) 
+  m_yr_df <- do.call(rbind, list_of_dfs) 
   return(m_yr_df)
 }
 
