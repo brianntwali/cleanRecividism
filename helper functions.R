@@ -252,8 +252,9 @@ get_id_m_yr_data <- function(input_id, input_cal_file, input_date) {
 
 # function to create a particular month-year's associated rows
 collect_m_yr_data <- function(m_yr_rows, ids, cal_file) {
+  # Switch to parapply?
   list_ids_dfs <- lapply(ids, get_id_m_yr_data, input_cal_file = cal_file, input_date = m_yr_rows)
-  fill_df_for_m_yr <- Reduce(rbind, list_ids_dfs)
+  fill_df_for_m_yr <- do.call(rbind, list_ids_dfs)
 }
 
 # test
@@ -272,8 +273,9 @@ create_yrs <- function() {
 pop_m_yr_df <- function(og_cal_file) {
   years <- create_yrs()
   extracted_ids <- rownames(og_cal_file)
+  # Switch to parapply?
   list_of_dfs <- lapply(years, collect_m_yr_data, ids = extracted_ids, cal_file = og_cal_file)
-  m_yr_df <- Reduce(rbind, list_of_dfs) 
+  m_yr_df <- do.call(rbind, list_of_dfs) 
   return(m_yr_df)
 }
 
