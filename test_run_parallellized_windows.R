@@ -55,10 +55,11 @@ system.time({
   
   for (i in seq_len(num_batches)){
     start_index <- (i-1)*batch_size+1
-    end_index <- min(i*batch_size, length(unique_ID))
+    end_index <- min(i*batch_size, length(unique_IDs))
     subset_ids <- unique_IDs[start_index:end_index]
     
-    result_subset <- parLapply(cl, subset_ids, populate_IDs2) %>% do.call(rbind())
+    result_subset <- parLapply(cl, subset_ids, populate_IDs2) 
+    result_subset <- do.call(rbind,result_subset)
     saveRDS(result_subset, file = paste0("C:/Users/silveus/Documents/PA DOC/intermediate data/result_",start_index,"_to_",end_index,".rds"))  
   }
 })
@@ -67,7 +68,7 @@ system.time({
 final_calendar_file <- data.frame()
 for (i in seq_len(num_batches)) {
   start_index <- (i - 1) * batch_size + 1
-  end_index <- min(i*batch_size, length(unique_ID))
+  end_index <- min(i*batch_size, length(unique_IDs))
   result_subset <- readRDS(paste0("C:/Users/silveus/Documents/PA DOC/intermediate data/result_",start_index,"_to_",end_index,".rds"))
   final_calendar_file <- rbind(final_calendar_file, result_subset)
 }
@@ -78,9 +79,17 @@ for (i in seq_len(num_batches)) {
 rownames(final_calendar_file) <- final_calendar_file[, 1]
 # Remove the first column from the dataframe
 final_calendar_file <- final_calendar_file[, -1]
-write_csv(final_calendar_file,"C:/Users/silveus/Documents/PA DOC/intermediate data/calander_file.csv")
+saveRDS(final_calendar_file,"C:/Users/silveus/Documents/PA DOC/intermediate data/calander_file.rds")
 
 # Creating main dataframe -------------------------------------------------
+
+if (exists("final_calendar_file")==0) {
+  print("Loading final_calendar_file")
+  final_calendar_file <- readRDS("C:/Users/silveus/Documents/PA DOC/intermediate data/calander_file.rds")  
+}else{
+  print("final_calendar_file already exists")
+}
+
 
 unique_facilities <- ccc_cohort %>% 
   distinct(facility, .keep_all = TRUE) %>% 
