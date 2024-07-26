@@ -82,10 +82,56 @@ htmloutput <- stargazer(balangereg1,balangereg2,balangereg3,balangereg4,balanger
 html_print(HTML(htmloutput))
 ```
 
-Baseline DID
+## Baseline DID
+
+### Risk Scores
 ```{r}
-reg1 <- felm(lsir ~ ccf + post + ccf*post year region avenumberarrivals2008_2010 avelsir2008_2010  |loc + year + calandermonth|0|0, data=reg_data)
-reg2 <- felm(lsir ~ ccf + post + ccf*post |loc + year + calandermonth|0|0, data=reg_data)
+reg1 <- felm(avelsir ~ ccf + post + ccf*post year region avenumberarrivals2008_2010 avelsir2008_2010 avepctblack2008_2010 |loc + year + calandermonth|0|0, data=reg_data)
+reg2 <- felm(avelsir ~ ccf + post + ccf*post |loc + year + calandermonth|0|0, data=reg_data)
+
+htmloutput <- stargazer(reg1,reg2, type = "html")
+
+html_print(HTML(htmloutput))
 ```
 
+### Race
+```{r}
+reg1 <- felm(blackarrivals ~ ccf + post + ccf*post year region avenumberarrivals2008_2010 avelsir2008_2010 avepctblack2008_2010 |loc + year + calandermonth|0|0, data=reg_data)
+reg2 <- felm(blackarrivals ~ ccf + post + ccf*post |loc + year + calandermonth|0|0, data=reg_data)
+
+htmloutput <- stargazer(reg1,reg2, type = "html")
+
+html_print(HTML(htmloutput))
+```
+
+### Offence Types
+```{r}
+# Violent
+reg1 <- felm(arrivals_violent ~ ccf + post + ccf*post year region avenumberarrivals2008_2010 avelsir2008_2010 avepctblack2008_2010 |loc + year + calandermonth|0|0, data=reg_data)
+reg2 <- felm(arrivals_violent ~ ccf + post + ccf*post |loc + year + calandermonth|0|0, data=reg_data)
+
+# Drug
+reg1 <- felm(arrivals_drug ~ ccf + post + ccf*post year region avenumberarrivals2008_2010 avelsir2008_2010 avepctblack2008_2010 |loc + year + calandermonth|0|0, data=reg_data)
+reg2 <- felm(arrivals_drug ~ ccf + post + ccf*post |loc + year + calandermonth|0|0, data=reg_data)
+
+# Property
+reg1 <- felm(arrivals_property ~ ccf + post + ccf*post year region avenumberarrivals2008_2010 avelsir2008_2010 avepctblack2008_2010 |loc + year + calandermonth|0|0, data=reg_data)
+reg2 <- felm(arrivals_property ~ ccf + post + ccf*post |loc + year + calandermonth|0|0, data=reg_data)
+htmloutput <- stargazer(reg1,reg2, type = "html")
+
+# Public Order
+reg1 <- felm(arrivals_public ~ ccf + post + ccf*post year region avenumberarrivals2008_2010 avelsir2008_2010 avepctblack2008_2010 |loc + year + calandermonth|0|0, data=reg_data)
+reg2 <- felm(arrivals_public ~ ccf + post + ccf*post |loc + year + calandermonth|0|0, data=reg_data)
+htmloutput <- stargazer(reg1,reg2,reg3, reg4, reg5, reg6, reg7, reg8, type = "html")
+
+
+html_print(HTML(htmloutput))
+```
+
+
+## Baseline Event Studies
+
+```{r}
+
+```
 
