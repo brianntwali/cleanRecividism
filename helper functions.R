@@ -23,7 +23,9 @@ library("readr")
 # Brian's Path
 #encripted_drive_path <- "/Volumes/Untitled/PA DOC/"
 # Neil's PC
-encripted_drive_path <- "C:/Users/silveus/Documents/Data/PA DOC/"
+#encripted_drive_path <- "C:/Users/silveus/Documents/Data/PA DOC/"
+# Neil's MAC
+encripted_drive_path <- "/Users/silveus/Documents/Data/PA DOC/"
 
 setwd(encripted_drive_path)
 
