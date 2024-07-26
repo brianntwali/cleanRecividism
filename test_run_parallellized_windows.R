@@ -98,9 +98,9 @@ unique_facilities <- ccc_cohort %>%
 
 #main_df <- pop_m_yr_df(final_calendar_file)
 system.time({
-  main_df <- parLapply(cl,final_calendar_file,pop_m_yr_df)
+  main_df <- pop_m_yr_df(final_calendar_file)
 })
-write_csv(main_df,"C:/Users/silveus/Documents/PA DOC/intermediate data/main_df.csv")
+saveRDS(main_df,"C:/Users/silveus/Documents/PA DOC/intermediate data/main_df.rds")
 print("Function 2 Complete")
 
 get_demos_fn <- function(dataframe){
@@ -130,7 +130,7 @@ get_demos_fn <- function(dataframe){
 #   ungroup()
 
 main_df_complete <- parLapply(cl,main_df,get_demos_fn)
-write_csv(main_df_complete,"C:/Users/silveus/Documents/PA DOC/intermediate data/main_complete_df.csv")
+saveRDS(main_df_complete,"C:/Users/silveus/Documents/PA DOC/intermediate data/main_complete_df.rds")
 print("Function 3 Complete")
 
 get_comparisons <- function(dataset){
@@ -152,7 +152,7 @@ get_comparisons <- function(dataset){
 system.time({
   main_comparison_df <- parLapply(cl,main_df_complete,get_comparisons)
 })
-write_csv(main_comparison_df,"C:/Users/silveus/Documents/PA DOC/intermediate data/main_comparison_df.csv")
+saveRDS(main_comparison_df,"C:/Users/silveus/Documents/PA DOC/intermediate data/main_comparison_df.rds")
 print("Function 4 Complete")
 # main_comparison_df <- main_df_complete %>% 
 #   group_by(loc, m_yr) %>% 
