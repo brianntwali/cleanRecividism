@@ -13,24 +13,9 @@ library(dplyr)
 library(lfe)
 library(ggplot2)
 library(htmltools)
+library(broom)
 
 ```
-
-
-```{r}
-mtcars %>% View()
-```
-
-```{r}
-mtcars %>% group_by(mpg,cyl) %>% summarise(count=n(), .groups = 'drop') %>% View()
-```
-
-
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
-
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
-
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
 
 
 
@@ -51,87 +36,272 @@ analysis_datapath <- paste0(encripted_drive_path,"/analysis data")
  
 
 ```
-
-
-
-Import analysis data
+## Build analysis with fake data
 ```{r}
-indiv_arrival_reg_data <- read.csv(paste0(analysis_datapath,"FILENAME"))
-facility_a
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Number of rows in the dataset
+num_rows <- 10000
+
+# Generate fake data
+arrival_FAKE_reg_data_facility <- tibble(
+  year = sample(2008:2024, num_rows, replace = TRUE),
+  quarter = sample(1:4, num_rows, replace = TRUE),
+  avelsir = runif(num_rows, 0, 1),
+  aveage = rnorm(num_rows, mean = 36, sd = 7),
+  arrivals_black=round(runif(num_rows,0,10)),
+  arrivals_drug=round(runif(num_rows,0,15)),
+  arrivals_violent=round(runif(num_rows,0,7)),
+  arrivals_property=round(runif(num_rows,0,9)),
+  arrivals_public=round(runif(num_rows,0,5)),
+  loc = sample(paste0("LOC", 1:150), num_rows, replace = TRUE),
+  ccf = sample(0:1, num_rows, replace = TRUE)
+)
+
+# Modify avelsir to fake treatment effect
+arrival_FAKE_reg_data_facility <- arrival_FAKE_reg_data_facility %>%
+  mutate(avelsir = ifelse((ccf==1)&(year > 2013 | (year == 2013 & quarter >= 3)),
+                          rnorm(n(), mean = .25, sd = 0.001),  # New distribution for ccfs after treatment: normal with mean 0.25 and sd 0.001
+                          avelsir))
+
+
+
 ```
 
 
 
 
-How do arrivals to CCFs compare to arrivals to CCCs prior to 2013? The below requires a dataset for analysis that has a dummy variable for post (>= 2013) and a dummy variable for ccf(1 if ccf, 0 if ccc). The dataset should be individual arrivals.
-```{r}
-balancereg1 <- felm(lsir~ccf,reg_data[reg_data$post==0])
-balancereg2 <- felm(black~ccf,reg_data[reg_data$post==0])
-balancereg3 <- felm(age~ccf,reg_data[reg_data$post==0])
-balancereg4 <- felm(drugoffence~ccf,reg_data[reg_data$post==0])
-balancereg5 <- felm(violentoffence~ccf, reg_data[reg_data$post==0])
-balancereg6 <- felm(arrivals <- ccf, reg_data[reg_data$post==0] %>% 
-                                                group_by(loc,month) %>% 
-                                                summarise(arrivals=n()),
-                                                          ccf=first(ccf),
-                                                          post=first(post))
+<!-- Import analysis data -->
+<!-- ```{r} -->
+<!-- indiv_arrival_reg_data <- read.csv(paste0(analysis_datapath,"FILENAME")) -->
+<!-- arrival_reg_data_facility read.csv(paste0(analysis_datapath,"FILENAME")) -->
+<!-- ``` -->
 
 
-htmloutput <- stargazer(balangereg1,balangereg2,balangereg3,balangereg4,balangereg5,balancereg6, type = "html")
-
-html_print(HTML(htmloutput))
-```
-
-## Baseline DID
-
-### Risk Scores
-```{r}
-reg1 <- felm(avelsir ~ ccf + post + ccf*post year region avenumberarrivals2008_2010 avelsir2008_2010 avepctblack2008_2010 |loc + year + calandermonth|0|0, data=reg_data)
-reg2 <- felm(avelsir ~ ccf + post + ccf*post |loc + year + calandermonth|0|0, data=reg_data)
-
-htmloutput <- stargazer(reg1,reg2, type = "html")
-
-html_print(HTML(htmloutput))
-```
-
-### Race
-```{r}
-reg1 <- felm(blackarrivals ~ ccf + post + ccf*post year region avenumberarrivals2008_2010 avelsir2008_2010 avepctblack2008_2010 |loc + year + calandermonth|0|0, data=reg_data)
-reg2 <- felm(blackarrivals ~ ccf + post + ccf*post |loc + year + calandermonth|0|0, data=reg_data)
-
-htmloutput <- stargazer(reg1,reg2, type = "html")
-
-html_print(HTML(htmloutput))
-```
-
-### Offence Types
-```{r}
-# Violent
-reg1 <- felm(arrivals_violent ~ ccf + post + ccf*post year region avenumberarrivals2008_2010 avelsir2008_2010 avepctblack2008_2010 |loc + year + calandermonth|0|0, data=reg_data)
-reg2 <- felm(arrivals_violent ~ ccf + post + ccf*post |loc + year + calandermonth|0|0, data=reg_data)
-
-# Drug
-reg1 <- felm(arrivals_drug ~ ccf + post + ccf*post year region avenumberarrivals2008_2010 avelsir2008_2010 avepctblack2008_2010 |loc + year + calandermonth|0|0, data=reg_data)
-reg2 <- felm(arrivals_drug ~ ccf + post + ccf*post |loc + year + calandermonth|0|0, data=reg_data)
-
-# Property
-reg1 <- felm(arrivals_property ~ ccf + post + ccf*post year region avenumberarrivals2008_2010 avelsir2008_2010 avepctblack2008_2010 |loc + year + calandermonth|0|0, data=reg_data)
-reg2 <- felm(arrivals_property ~ ccf + post + ccf*post |loc + year + calandermonth|0|0, data=reg_data)
-htmloutput <- stargazer(reg1,reg2, type = "html")
-
-# Public Order
-reg1 <- felm(arrivals_public ~ ccf + post + ccf*post year region avenumberarrivals2008_2010 avelsir2008_2010 avepctblack2008_2010 |loc + year + calandermonth|0|0, data=reg_data)
-reg2 <- felm(arrivals_public ~ ccf + post + ccf*post |loc + year + calandermonth|0|0, data=reg_data)
-htmloutput <- stargazer(reg1,reg2,reg3, reg4, reg5, reg6, reg7, reg8, type = "html")
 
 
-html_print(HTML(htmloutput))
-```
+<!-- How do arrivals to CCFs compare to arrivals to CCCs prior to 2013? The below requires a dataset for analysis that has a dummy variable for post (>= 2013) and a dummy variable for ccf(1 if ccf, 0 if ccc). The dataset should be individual arrivals. -->
+<!-- ```{r} -->
+<!-- balancereg1 <- felm(lsir~ccf,reg_data[reg_data$post==0]) -->
+<!-- balancereg2 <- felm(black~ccf,reg_data[reg_data$post==0]) -->
+<!-- balancereg3 <- felm(age~ccf,reg_data[reg_data$post==0]) -->
+<!-- balancereg4 <- felm(drugoffence~ccf,reg_data[reg_data$post==0]) -->
+<!-- balancereg5 <- felm(violentoffence~ccf, reg_data[reg_data$post==0]) -->
+<!-- balancereg6 <- felm(arrivals <- ccf, reg_data[reg_data$post==0] %>%  -->
+<!--                                                 group_by(loc,month) %>%  -->
+<!--                                                 summarise(arrivals=n()), -->
+<!--                                                           ccf=first(ccf), -->
+<!--                                                           post=first(post)) -->
+
+
+<!-- htmloutput <- stargazer(balangereg1,balangereg2,balangereg3,balangereg4,balangereg5,balancereg6, type = "html") -->
+
+<!-- html_print(HTML(htmloutput)) -->
+<!-- ``` -->
+
+<!-- ## Baseline DID -->
+
+<!-- ### Risk Scores -->
+<!-- ```{r} -->
+<!-- reg1 <- felm(avelsir ~ ccf + post + ccf*post year region avenumberarrivals2008_2010 avelsir2008_2010 avepctblack2008_2010 |loc + year + calandermonth|0|0, data=reg_data) -->
+<!-- reg2 <- felm(avelsir ~ ccf + post + ccf*post |loc + year + calandermonth|0|0, data=reg_data) -->
+
+<!-- htmloutput <- stargazer(reg1,reg2, type = "html") -->
+
+<!-- html_print(HTML(htmloutput)) -->
+<!-- ``` -->
+
+<!-- ### Race -->
+<!-- ```{r} -->
+<!-- reg1 <- felm(blackarrivals ~ ccf + post + ccf*post year region avenumberarrivals2008_2010 avelsir2008_2010 avepctblack2008_2010 |loc + year + calandermonth|0|0, data=reg_data) -->
+<!-- reg2 <- felm(blackarrivals ~ ccf + post + ccf*post |loc + year + calandermonth|0|0, data=reg_data) -->
+
+<!-- htmloutput <- stargazer(reg1,reg2, type = "html") -->
+
+<!-- html_print(HTML(htmloutput)) -->
+<!-- ``` -->
+
+<!-- ### Offence Types -->
+<!-- ```{r} -->
+<!-- # Violent -->
+<!-- reg1 <- felm(arrivals_violent ~ ccf + post + ccf*post year region avenumberarrivals2008_2010 avelsir2008_2010 avepctblack2008_2010 |loc + year + calandermonth|0|0, data=reg_data) -->
+<!-- reg2 <- felm(arrivals_violent ~ ccf + post + ccf*post |loc + year + calandermonth|0|0, data=reg_data) -->
+
+<!-- # Drug -->
+<!-- reg1 <- felm(arrivals_drug ~ ccf + post + ccf*post year region avenumberarrivals2008_2010 avelsir2008_2010 avepctblack2008_2010 |loc + year + calandermonth|0|0, data=reg_data) -->
+<!-- reg2 <- felm(arrivals_drug ~ ccf + post + ccf*post |loc + year + calandermonth|0|0, data=reg_data) -->
+
+<!-- # Property -->
+<!-- reg1 <- felm(arrivals_property ~ ccf + post + ccf*post year region avenumberarrivals2008_2010 avelsir2008_2010 avepctblack2008_2010 |loc + year + calandermonth|0|0, data=reg_data) -->
+<!-- reg2 <- felm(arrivals_property ~ ccf + post + ccf*post |loc + year + calandermonth|0|0, data=reg_data) -->
+<!-- htmloutput <- stargazer(reg1,reg2, type = "html") -->
+
+<!-- # Public Order -->
+<!-- reg1 <- felm(arrivals_public ~ ccf + post + ccf*post year region avenumberarrivals2008_2010 avelsir2008_2010 avepctblack2008_2010 |loc + year + calandermonth|0|0, data=reg_data) -->
+<!-- reg2 <- felm(arrivals_public ~ ccf + post + ccf*post |loc + year + calandermonth|0|0, data=reg_data) -->
+<!-- htmloutput <- stargazer(reg1,reg2,reg3, reg4, reg5, reg6, reg7, reg8, type = "html") -->
+
+
+<!-- html_print(HTML(htmloutput)) -->
+<!-- ``` -->
+
 
 
 ## Baseline Event Studies
 
+The basic event study for facility level analyses will take the following form:
+
+$$
+y_{ft}=\alpha+CCF_f\times\sum^{14}_{\substack{\tau=-14}\\ \tau\neq -1}\beta_{\tau}I(t-t^*=\tau)+\gamma_f +\lambda_t+\epsilon_{ft}
+$$
+Where: 
+
+* $\alpha$: Constant
+* $CCF$: Dummy variable equal to 1 if facility if CCF
+* $I(t-t^*=\tau)$: $t^*$ is the time period of treatment. $I(t-t^*=\tau)$ is an indicator function that is equal to one if $t$ is $\tau$ periods from treatment
+* $gamma_f$ and $lambda_t$ are facility and period fixed effects respectively
+
+
+### Create a function to create an event study graph using the specification above
 ```{r}
+make_es <- function(pre_period_num,post_period_num,outcome_variable, treatment_date, data, confidence_interval=0.95, graph_label="Enter graph label"){
+
+trt_year <- as.numeric(substr(treatment_date, 5, 8))
+trt_month <- as.numeric(substr(treatment_date,1,2))
+trt_quarter <- ceiling(4*(trt_month/12))
+
+
+es_data <- data %>% arrange(year, quarter) %>% group_by(year, quarter) %>% mutate(period_index=cur_group_id()) %>% ungroup()
+
+es_data <- es_data %>% mutate(post=ifelse(year>trt_year|(year==trt_year & quarter>=trt_quarter),1,0))
+
+#get index number for the treatment period. The result is an integer.
+trt_index <- es_data %>% filter(year==trt_year, quarter==trt_quarter) %>% distinct(year,quarter,.keep_all = TRUE) %>% pull("period_index")
+
+#recenter the periods so that the treatment period is indexed as zero
+es_data <- es_data %>% mutate(period_index=period_index-trt_index)
+
+#keep only observations within the specified event window
+es_data <- es_data %>% filter(period_index<=post_period_num & period_index>=-1*(pre_period_num))
+
+# Convert 'period_index' to factor and set reference level to "-1"
+es_data$period_factor <- relevel(factor(es_data$period_index), ref = "-1")
+
+# Ensure 'outcome_variable' exists in the data
+if (!outcome_variable %in% names(es_data)) {
+  stop(paste("The outcome variable", outcome_variable, "is not found in the dataset"))
+}
+
+
+# Fit the fixed effects model
+formula <- as.formula(paste(outcome_variable, "~ ccf * period_factor | loc | 0 | 0")) # note that this syntax fits a model with ccf and period_factor fixed effects as well as the interaction
+es_reg <- felm(formula, es_data)
+
+# Extract coefficients
+coefficients <- summary(es_reg)$coefficients
+
+# Convert coefficients to data frame
+coef_df <- data.frame(
+  term = rownames(coefficients),
+  estimate = coefficients[, "Estimate"],
+  std.error = coefficients[, "Std. Error"]
+)
+
+# Keep event study coefficients
+coef_df <- coef_df %>%
+  filter(grepl("ccf", term) & grepl("period_factor", term))
+
+#Manually add omitted coefficient
+ref_coeff <- data.frame(
+    term = "ccf:period_factor-1",
+    estimate = 0,
+    std.error = 0
+)
+
+coef_df <- rbind(coef_df, ref_coeff)
+
+# Add confidence intervals
+zscore=qnorm((1-confidence_interval)/2+confidence_interval)
+coef_df <- coef_df %>%
+  mutate(
+    conf.low = estimate - zscore * std.error,
+    conf.high = estimate + zscore * std.error
+  )
+
+# Specify the desired order for the period factors
+desired_order <- paste0("ccf:period_factor", -pre_period_num:post_period_num)
+coef_df <- coef_df %>%
+  mutate(term = factor(term, levels = desired_order)) %>%
+  arrange(term)
+
+
+# Plot the coefficients
+ggplot(coef_df, aes(x = term, y = estimate)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.2) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_x_discrete(
+    breaks = desired_order[seq(1, length(desired_order), by = 2)],  # Set breaks for every other tick
+    labels = as.character(seq(-pre_period_num, post_period_num, by = 2))  # Customize labels
+  ) +
+  labs(title = graph_label,
+       x = "Event Time (quarters)",
+       y = "")
+}
+
+#number of pre periods
+pre_period_num=14
+#number of post periods
+post_period_num=14
+#outcome variable
+outcome_variable <- 'avelsir'
+#define treatment date MMDDYYY
+treatment_date <- "07012013"
+
+
 
 ```
+
+
+### Average LSIR event study
+```{r}
+make_es(pre_period_num = 14, post_period_num = 14, outcome_variable = 'avelsir', treatment_date = '07012013', data = arrival_FAKE_reg_data_facility, confidence_interval = 0.95, graph_label = "Average LSIR of Arrivals: FAKE DATA")
+```
+
+### Average age event study
+
+```{r}
+make_es(pre_period_num = 14, post_period_num = 14, outcome_variable = 'aveage', treatment_date = '07012013', data = arrival_FAKE_reg_data_facility, confidence_interval = 0.95, graph_label = "Average Age of Arrivals: FAKE DATA")
+```
+
+### Number of black arrivals event study
+```{r}
+make_es(pre_period_num = 14, post_period_num = 14, outcome_variable = 'arrivals_black', treatment_date = '07012013', data = arrival_FAKE_reg_data_facility, confidence_interval = 0.95, graph_label = "# of Black arrivals: FAKE DATA")
+```
+
+
+
+### Number of drug offense arrivals event study
+```{r}
+make_es(pre_period_num = 14, post_period_num = 14, outcome_variable = 'arrivals_drug', treatment_date = '07012013', data = arrival_FAKE_reg_data_facility, confidence_interval = 0.95, graph_label = "# Drug offense arrivals: FAKE DATA")
+```
+
+
+### Number of violent offense arrivals event study
+```{r}
+make_es(pre_period_num = 14, post_period_num = 14, outcome_variable = 'arrivals_violent', treatment_date = '07012013', data = arrival_FAKE_reg_data_facility, confidence_interval = 0.95, graph_label = "# Violent offense arrivals: FAKE DATA")
+```
+
+### Number of property offense arrivals event study
+```{r}
+make_es(pre_period_num = 14, post_period_num = 14, outcome_variable = 'arrivals_property', treatment_date = '07012013', data = arrival_FAKE_reg_data_facility, confidence_interval = 0.95, graph_label = "# Property offense arrivals: FAKE DATA")
+```
+
+ ### Number of public order offense arrivals event study
+```{r}
+make_es(pre_period_num = 14, post_period_num = 14, outcome_variable = 'arrivals_violent', treatment_date = '07012013', data = arrival_FAKE_reg_data_facility, confidence_interval = 0.95, graph_label = "# Public order offense arrivals: FAKE DATA")
+```
+
 
