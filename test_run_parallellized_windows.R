@@ -63,6 +63,8 @@ system.time({
     saveRDS(result_subset, file = paste0("C:/Users/silveus/Documents/PA DOC/intermediate data/result_",start_index,"_to_",end_index,".rds"))  
   }
 })
+# end cluster to free up cores
+stopCluster(cl)
 
 # Combine saved results into a single object if needed
 final_calendar_file <- data.frame()
@@ -91,45 +93,138 @@ if (exists("final_calendar_file")==0) {
 }
 
 
+
 unique_facilities <- ccc_cohort %>% 
   distinct(facility, .keep_all = TRUE) %>% 
   select(center_code, facility, region_code)
 
+#Create test dataset
+final_calendar_file_test <-final_calendar_file %>% head(11)
+
+#Run paralleled code to create main_df
+system.time({
+  batch_size <- 1000
+  num_batches <- ceiling(nrow(final_calendar_file)/batch_size)
+  
+  for (i in seq_len(num_batches)){
+    start_index <- (i-1)*batch_size+1
+    end_index <- min(i*batch_size, nrow(final_calendar_file))
+    subset_ids <- final_calendar_file[start_index:end_index,]
+    
+    result_subset <- pop_m_yr_df(subset_ids)
+    saveRDS(result_subset, file = paste0("C:/Users/silveus/Documents/PA DOC/intermediate data/main_df_",start_index,"_to_",end_index,".rds"))  
+  }
+})
+
+# Combine saved results into a single object if needed
+main_df <- data.frame()
+for (i in seq_len(num_batches)) {
+  start_index <- (i - 1) * batch_size + 1
+  end_index <- min(i*batch_size, nrow(final_calendar_file))
+  result_subset <- readRDS(paste0("C:/Users/silveus/Documents/PA DOC/intermediate data/main_df_",start_index,"_to_",end_index,".rds"))
+  main_df <- rbind(main_df, result_subset)
+}
+
+
 
 #main_df <- pop_m_yr_df(final_calendar_file)
-system.time({
-  main_df <- pop_m_yr_df(final_calendar_file)
-})
+#system.time({
+#  main_df <- pop_m_yr_df(final_calendar_file)
+#})
 saveRDS(main_df,"C:/Users/silveus/Documents/PA DOC/intermediate data/main_df.rds")
 print("Function 2 Complete")
 
-get_demos_fn <- function(dataframe){
-  return(dataframe %>% 
-    rowwise() %>%
-    mutate(
-      age = get_age(ID, m_yr),
-      lsir = get_lsir(ID, m_yr), 
-      race = get_race(ID),
-      sex = get_sex(ID),
-      facility_type = get_facility_type(loc),
-      facility_region = get_facility_region(loc)
-    )  %>%
-    ungroup())
+
+
+if (exists("main_df")==0) {
+  print("Loading main_df")
+  main_df <- readRDS("C:/Users/silveus/Documents/PA DOC/intermediate data/main_df.rds")  
+}else{
+  print("main_df already exists")
+}
+# Make complete dataset by getting age, LSIR, RACE, SEX, facilty TYPE, and Region
+
+
+#Parallelized version. Finicky. requires doParallel and foreach packages.
+# registerDoParallel(cl)
+# main_test_df <- main_df %>% head(100)
+# system.time({
+# main_df_complete <- foreach(i = 1:nrow(main_test_df), .combine = 'rbind', .packages = c('dplyr')) %dopar% {
+#   row <- main_test_df[i, ]
+#   
+#   row$age <- get_age(row$ID, row$m_yr)
+#   row$lsir <- get_lsir(row$ID, row$m_yr)
+#   row$race <- get_race(row$ID)
+#   row$sex <- get_sex(row$ID)
+#   row$facility_type <- get_facility_type(row$loc)
+#   row$facility_region <- get_facility_region(row$loc)
+#   
+#   return(row)
+# }
+# })
+
+
+#create complete main df in batches
+system.time({
+  batch_size <- 1000
+  num_batches <- ceiling(nrow(main_df)/batch_size)
+  
+  for (i in seq_len(num_batches)){
+    start_index <- (i-1)*batch_size+1
+    end_index <- min(i*batch_size, nrow(main_df))
+    subset_ids <- main_df[start_index:end_index,]
+    temp_filepath <- paste0("C:/Users/silveus/Documents/PA DOC/intermediate data/main_complete_df_",start_index,"_to_",end_index,".rds")
+    
+    #check to see if intermediate file already exists
+    if (file.exists(temp_filepath)) {
+      print(paste0("main_complete_df_",start_index,"_to_",end_index,".rds exists. Skip"))
+    }
+    else{
+    
+      result_subset <- main_df  %>%
+        rowwise() %>%
+        mutate(
+          age = get_age(ID, m_yr),
+          lsir = get_lsir(ID, m_yr),
+          race = get_race(ID),
+          sex = get_sex(ID),
+          facility_type = get_facility_type(loc),
+          facility_region = get_facility_region(loc)
+        )  %>%
+        ungroup()
+      saveRDS(result_subset, file = temp_filepath)
+      print(paste0("main_complete_df_",start_index,"_to_",end_index,".rds completed"))
+    }
+  }
+})
+
+# Combine saved results into a single object if needed
+main_df <- data.frame()
+for (i in seq_len(num_batches)) {
+  start_index <- (i - 1) * batch_size + 1
+  end_index <- min(i*batch_size, nrow(main_df))
+  result_subset <- readRDS(paste0("C:/Users/silveus/Documents/PA DOC/intermediate data/main_complete_df_",start_index,"_to_",end_index,".rds"))
+  main_df_complete <- rbind(main_df, result_subset)
 }
 
-# main_df_complete <- main_df %>% 
+# 
+# main_test_df <- main_df[2001:3000,]
+# system.time({
+# main_df_complete <- main_test_df  %>%
 #   rowwise() %>%
 #   mutate(
 #     age = get_age(ID, m_yr),
-#     lsir = get_lsir(ID, m_yr), 
+#     lsir = get_lsir(ID, m_yr),
 #     race = get_race(ID),
 #     sex = get_sex(ID),
 #     facility_type = get_facility_type(loc),
 #     facility_region = get_facility_region(loc)
 #   )  %>%
 #   ungroup()
+# 
+# })
 
-main_df_complete <- parLapply(cl,main_df,get_demos_fn)
+#main_df_complete <- parLapply(cl,main_test_df,get_demos_fn)
 saveRDS(main_df_complete,"C:/Users/silveus/Documents/PA DOC/intermediate data/main_complete_df.rds")
 print("Function 3 Complete")
 
@@ -201,7 +296,22 @@ print("Function 5 Complete")
 #     across(starts_with("facility_region_"), first)
 #   )
 
-# end cluster to free up cores
-stopCluster(cl)
 
+# num_workers <- getDoParWorkers()
+# 
+# if (num_workers > 1) {
+#   print(paste("Active cluster with", num_workers, "workers."))
+# } else {
+#   print("No active cluster.")
+# }
+# 
+# if (exists("cl") && !is.null(cl) && inherits(cl, "cluster")) {
+#   print("Active cluster detected.")
+# } else {
+#   print("No active cluster detected.")
+# }
+# 
+# if (exists("cl") && inherits(cl, "cluster")) {
+#   str(cl)
+# }
 # 
