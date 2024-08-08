@@ -181,7 +181,7 @@ system.time({
     }
     else{
       print(paste0("Working on ",start_index," to ",end_index))
-      result_subset <- main_df  %>%
+      result_subset <- subset_ids  %>%
         rowwise() %>%
         mutate(
           age = get_age(ID, m_yr),
