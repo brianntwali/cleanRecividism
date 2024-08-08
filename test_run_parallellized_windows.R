@@ -199,34 +199,42 @@ system.time({
 })
 
 # Combine saved results into a single object if needed
-main_df <- data.frame()
+main_df_complete <- data.frame()
 for (i in seq_len(num_batches)) {
   start_index <- (i - 1) * batch_size + 1
   end_index <- min(i*batch_size, nrow(main_df))
   result_subset <- readRDS(paste0(encripted_drive_path,"intermediate data/main_complete_df_",start_index,"_to_",end_index,".rds"))
-  main_df_complete <- rbind(main_df, result_subset)
+  main_df_complete <- rbind(main_df_complete, result_subset)
 }
 
-
-main_test_df <- main_df[1:1000,]
-system.time({
-main_df_complete <- main_test_df  %>%
-  rowwise() %>%
-  mutate(
-    age = get_age(ID, m_yr),
-    lsir = get_lsir(ID, m_yr),
-    race = get_race(ID),
-    sex = get_sex(ID),
-    facility_type = get_facility_type(loc),
-    facility_region = get_facility_region(loc)
-  )  %>%
-  ungroup()
-
-})
+# 
+# main_test_df <- main_df[1:1000,]
+# system.time({
+# main_df_complete <- main_test_df  %>%
+#   rowwise() %>%
+#   mutate(
+#     age = get_age(ID, m_yr),
+#     lsir = get_lsir(ID, m_yr),
+#     race = get_race(ID),
+#     sex = get_sex(ID),
+#     facility_type = get_facility_type(loc),
+#     facility_region = get_facility_region(loc)
+#   )  %>%
+#   ungroup()
+# 
+# })
 
 #main_df_complete <- parLapply(cl,main_test_df,get_demos_fn)
-saveRDS(main_df_complete,"C:/Users/silveus/Documents/PA DOC/intermediate data/main_complete_df.rds")
+saveRDS(main_df_complete,paste0(encripted_drive_path,"intermediate data/main_complete_df.rds"))
 print("Function 3 Complete")
+
+
+if (exists("main_df_complete")==0) {
+  print("Loading main_df_complete")
+  main_df <- readRDS(paste0(encripted_drive_path,"intermediate data/main_complete_df.rds"))  
+}else{
+  print("main_df_complete already exists")
+}
 
 get_comparisons <- function(dataset){
   return(dataset %>% 
