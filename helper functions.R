@@ -25,7 +25,9 @@ library("readr")
 # Neil's PC
 #encripted_drive_path <- "C:/Users/silveus/Documents/Data/PA DOC/"
 # Neil's MAC
-encripted_drive_path <- "/Users/silveus/Documents/Data/PA DOC/"
+if (system_info["nodename"]=="Neil-Silveuss-MacBook-Air.local"){
+  encripted_drive_path <- "/Volumes/Encrypted/PA DOC/"
+}
 
 setwd(encripted_drive_path)
 
