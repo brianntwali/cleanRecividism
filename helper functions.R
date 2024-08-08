@@ -19,13 +19,14 @@ library("doParallel")
 
 
 # Loading data ------------------------------------------------------------
-
+system_info <- Sys.info()
 # Brian's Path
 #encripted_drive_path <- "/Volumes/Untitled/PA DOC/"
 # Neil's PC
-#encripted_drive_path <- "C:/Users/silveus/Documents/Data/PA DOC/"
+if (system_info["nodename"]=="SILVEUS01538KH"){
+  encripted_drive_path <- "A:/PA DOC/"
 # Neil's MAC
-if (system_info["nodename"]=="Neil-Silveuss-MacBook-Air.local"){
+}else if (system_info["nodename"]=="Neil-Silveuss-MacBook-Air.local"){
   encripted_drive_path <- "/Volumes/Encrypted/PA DOC/"
 }
 
