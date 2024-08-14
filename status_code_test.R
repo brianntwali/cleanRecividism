@@ -169,6 +169,13 @@ final_PTCE_dt <- create_final_code_dt('PTCE')
 final_DC2P_dt <- create_final_code_dt('DC2P')
 
 # View(final_DC2P_dt)
+
+# Observing Program Change (PRCH)
+
+final_PRCH_dt <- create_final_code_dt('PRCH')
+
+# View(final_PRCH_dt)
+
 # View(isolate_status_case(cc_counts_df, 'DC2P'))
 
 # Observing Unsuccessful Discharge (UDSC)

@@ -119,7 +119,7 @@ pop_m_yr_df <- function(og_cal_file) {
 }
 
 # run main function
-m_yr_df <- pop_m_yr_df(calendar_file)
+m_yr_df <- pop_m_yr_df(calendar_file[1:10,])
 View(m_yr_df)
 
 

@@ -13,9 +13,10 @@ library(dplyr)
 library(lfe)
 library(ggplot2)
 library(htmltools)
-library(broom)
 
-```
+library(broom)
+library(lubridate)
+library(fixest)
 
 
 
@@ -24,50 +25,54 @@ Define filepaths
 ```{r}
 # encrypted drive path
 # Brian
-#encripted_drive_path <- "/Volumes/Untitled/PA DOC/"
- 
+encripted_drive_path <- "/Volumes/Untitled/"
+
+
 # Neil mac
 encripted_drive_path <- "/Users/silveus/Documents/Data/PA DOC/" 
 # Neil PC 
 #encripted_drive_path <- "" 
 
 # analysis path
-analysis_datapath <- paste0(encripted_drive_path,"/analysis data")
- 
+
+analysis_datapath <- paste0(encripted_drive_path,"intermediate data/")
+
 
 ```
 ## Build analysis with fake data
 ```{r}
 
-# Set seed for reproducibility
-set.seed(123)
+daily_individual_reg_data_quarter <- readRDS("daily_data_per_quarter.RDS")
 
-# Number of rows in the dataset
-num_rows <- 10000
+daily_individual_reg_data_month <- readRDS("daily_data_per_month.RDS")
 
-# Generate fake data
-arrival_FAKE_reg_data_facility <- tibble(
-  year = sample(2008:2024, num_rows, replace = TRUE),
-  quarter = sample(1:4, num_rows, replace = TRUE),
-  avelsir = runif(num_rows, 0, 1),
-  aveage = rnorm(num_rows, mean = 36, sd = 7),
-  arrivals_black=round(runif(num_rows,0,10)),
-  arrivals_drug=round(runif(num_rows,0,15)),
-  arrivals_violent=round(runif(num_rows,0,7)),
-  arrivals_property=round(runif(num_rows,0,9)),
-  arrivals_public=round(runif(num_rows,0,5)),
-  loc = sample(paste0("LOC", 1:150), num_rows, replace = TRUE),
-  ccf = sample(0:1, num_rows, replace = TRUE)
-)
+View(daily_individual_reg_data)
 
-# Modify avelsir to fake treatment effect
-arrival_FAKE_reg_data_facility <- arrival_FAKE_reg_data_facility %>%
-  mutate(avelsir = ifelse((ccf==1)&(year > 2013 | (year == 2013 & quarter >= 3)),
-                          rnorm(n(), mean = .25, sd = 0.001),  # New distribution for ccfs after treatment: normal with mean 0.25 and sd 0.001
-                          avelsir))
+indiv_arrival_reg_data <-read.csv(paste0(analysis_datapath,"individual_per_quarter.csv"),
+                                   colClasses = c("control_number" = "character"))
+indiv_arrival_reg_data <- indiv_arrival_reg_data[, -1] %>% 
+  mutate(period_group = ymd(period_group)) %>% 
+  ungroup()
+
+View(indiv_arrival_reg_data)
+
+individual_daily_data <- readRDS(paste0(analysis_datapath,"Main files/main_complete_df.rds"))
+individual_daily_data <- individual_daily_data %>% 
+  relocate(c(ID, loc), .before = 1) %>% 
+  # spelling error 
+  filter(facility_type != "UNKOWN")
+
+View(individual_daily_data)
 
 
+monthly_indiv_arrival_data <-read.csv(paste0(analysis_datapath,"individual_per_quarter.csv"),
+                                   colClasses = c("control_number" = "character"))
+monthly_indiv_arrival_data <- monthly_indiv_arrival_data[, -1] %>% 
+  mutate(period_group = ymd(period_group)) %>% 
+  ungroup()
 
+View(monthly_indiv_arrival_data)
+# facility_arrival_reg_data <-
 ```
 
 
@@ -184,23 +189,24 @@ trt_index <- es_data %>% filter(year==trt_year, quarter==trt_quarter) %>% distin
 es_data <- es_data %>% mutate(period_index=period_index-trt_index)
 
 #keep only observations within the specified event window
-es_data <- es_data %>% filter(period_index<=post_period_num & period_index>=-1*(pre_period_num))
+es_data <- es_data %>% filter(period_index<=post_period_num & period_index >= -1*(pre_period_num))
 
 # Convert 'period_index' to factor and set reference level to "-1"
 es_data$period_factor <- relevel(factor(es_data$period_index), ref = "-1")
+# Make facility_type_CCF a factor
+es_data$facility_type_CCF <- factor(es_data$facility_type_CCF)
 
 # Ensure 'outcome_variable' exists in the data
 if (!outcome_variable %in% names(es_data)) {
   stop(paste("The outcome variable", outcome_variable, "is not found in the dataset"))
 }
 
-
 # Fit the fixed effects model
-formula <- as.formula(paste(outcome_variable, "~ ccf * period_factor | loc | 0 | 0")) # note that this syntax fits a model with ccf and period_factor fixed effects as well as the interaction
-es_reg <- felm(formula, es_data)
 
-# Extract coefficients
-coefficients <- summary(es_reg)$coefficients
+formula <- as.formula(paste(outcome_variable, "~ period_factor + facility_type_CCF*period_factor"))
+es_reg <- feols(formula, es_data)
+
+coefficients <- coeftable(summary(es_reg, n = 103))
 
 # Convert coefficients to data frame
 coef_df <- data.frame(
@@ -209,18 +215,22 @@ coef_df <- data.frame(
   std.error = coefficients[, "Std. Error"]
 )
 
+
 # Keep event study coefficients
 coef_df <- coef_df %>%
-  filter(grepl("ccf", term) & grepl("period_factor", term))
+    filter(grepl("CCF", term) & grepl("period_factor", term))
+
+# View(coef_df)
 
 #Manually add omitted coefficient
 ref_coeff <- data.frame(
-    term = "ccf:period_factor-1",
+    term = "period_factor-1:facility_type_CCF1",
     estimate = 0,
     std.error = 0
 )
 
 coef_df <- rbind(coef_df, ref_coeff)
+
 
 # Add confidence intervals
 zscore=qnorm((1-confidence_interval)/2+confidence_interval)
@@ -231,11 +241,18 @@ coef_df <- coef_df %>%
   )
 
 # Specify the desired order for the period factors
-desired_order <- paste0("ccf:period_factor", -pre_period_num:post_period_num)
+desired_order <- paste0("period_factor", -pre_period_num:post_period_num,":facility_type_CCF1")
 coef_df <- coef_df %>%
   mutate(term = factor(term, levels = desired_order)) %>%
   arrange(term)
 
+
+View(coef_df)
+
+daily_individual_reg_data_quarter
+# 
+# pattern <- "_[a=z]"
+# extracted_label <- gregexpr(pattern, toString(data), value = TRUE)
 
 # Plot the coefficients
 ggplot(coef_df, aes(x = term, y = estimate)) +
@@ -256,7 +273,7 @@ pre_period_num=14
 #number of post periods
 post_period_num=14
 #outcome variable
-outcome_variable <- 'avelsir'
+outcome_variable <- 'avg_lsir'
 #define treatment date MMDDYYY
 treatment_date <- "07012013"
 
@@ -267,41 +284,47 @@ treatment_date <- "07012013"
 
 ### Average LSIR event study
 ```{r}
-make_es(pre_period_num = 14, post_period_num = 14, outcome_variable = 'avelsir', treatment_date = '07012013', data = arrival_FAKE_reg_data_facility, confidence_interval = 0.95, graph_label = "Average LSIR of Arrivals: FAKE DATA")
+make_es(pre_period_num = 14, post_period_num = 14, outcome_variable = 'avg_lsir', treatment_date = '01012013', data = indiv_arrival_reg_data, confidence_interval = 0.95, graph_label = "Average LSIR of Arrivals")
+
+make_es(pre_period_num = 14, post_period_num = 14, outcome_variable = 'avg_lsir', treatment_date = '01012013', data = daily_individual_reg_data_quarter, confidence_interval = 0.95, graph_label = "Average LSIR of Calendar")
 ```
 
 ### Average age event study
 
 ```{r}
-make_es(pre_period_num = 14, post_period_num = 14, outcome_variable = 'aveage', treatment_date = '07012013', data = arrival_FAKE_reg_data_facility, confidence_interval = 0.95, graph_label = "Average Age of Arrivals: FAKE DATA")
+make_es(pre_period_num = 14, post_period_num = 14, outcome_variable = 'avg_age', treatment_date = '07012013', data = arrival_FAKE_reg_data_facility, confidence_interval = 0.95, graph_label = "Average Age of Arrivals")
 ```
 
 ### Number of black arrivals event study
 ```{r}
-make_es(pre_period_num = 14, post_period_num = 14, outcome_variable = 'arrivals_black', treatment_date = '07012013', data = arrival_FAKE_reg_data_facility, confidence_interval = 0.95, graph_label = "# of Black arrivals: FAKE DATA")
+make_es(pre_period_num = 14, post_period_num = 14, outcome_variable = 'count_black', treatment_date = '07012013', data = arrival_FAKE_reg_data_facility, confidence_interval = 0.95, graph_label = "# of Black arrivals")
 ```
 
 
 
 ### Number of drug offense arrivals event study
 ```{r}
-make_es(pre_period_num = 14, post_period_num = 14, outcome_variable = 'arrivals_drug', treatment_date = '07012013', data = arrival_FAKE_reg_data_facility, confidence_interval = 0.95, graph_label = "# Drug offense arrivals: FAKE DATA")
+make_es(pre_period_num = 14, post_period_num = 14, outcome_variable = 'drug_offenses', treatment_date = '07012013', data = arrival_FAKE_reg_data_facility, confidence_interval = 0.95, graph_label = "# Drug offense arrivals")
 ```
 
 
 ### Number of violent offense arrivals event study
 ```{r}
-make_es(pre_period_num = 14, post_period_num = 14, outcome_variable = 'arrivals_violent', treatment_date = '07012013', data = arrival_FAKE_reg_data_facility, confidence_interval = 0.95, graph_label = "# Violent offense arrivals: FAKE DATA")
+make_es(pre_period_num = 14, post_period_num = 14, outcome_variable = 'arrivals_violent', treatment_date = '07012013', data = arrival_FAKE_reg_data_facility, confidence_interval = 0.95, graph_label = "# Violent offense arrivals")
 ```
 
 ### Number of property offense arrivals event study
 ```{r}
-make_es(pre_period_num = 14, post_period_num = 14, outcome_variable = 'arrivals_property', treatment_date = '07012013', data = arrival_FAKE_reg_data_facility, confidence_interval = 0.95, graph_label = "# Property offense arrivals: FAKE DATA")
+make_es(pre_period_num = 14, post_period_num = 14, outcome_variable = 'property_offenses', treatment_date = '07012013', data = arrival_FAKE_reg_data_facility, confidence_interval = 0.95, graph_label = "# Property offense arrivals")
+```
 ```
 
- ### Number of public order offense arrivals event study
-```{r}
-make_es(pre_period_num = 14, post_period_num = 14, outcome_variable = 'arrivals_violent', treatment_date = '07012013', data = arrival_FAKE_reg_data_facility, confidence_interval = 0.95, graph_label = "# Public order offense arrivals: FAKE DATA")
-```
 
+# Manually add each period's dummy variable (what it looks like with all its coeff)
+
+
+
+# Think about unemployment + other economic conditions for 
+# recidivism outcome
+>>>>>>> 96f944d (Changes to various files. Updated regression in Analysis Notebook to account for collinearity.)
 

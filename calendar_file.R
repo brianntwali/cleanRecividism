@@ -316,12 +316,19 @@ unique_IDs <- ccc_moves %>%
   arrange(desc(control_number)) %>%
   pull(control_number)
 
-sampling <- sample(unique_IDs, 3000)
+sampling <- head(unique_IDs, 1000)
 
 sampling <- sort(sampling)
 
-list_of_dts <- lapply(sampling, populate_IDs, check_date = '01012008', end_date = '01012021')
-calendar_file_use <- Reduce(rbind, list_of_dts)
+system.time(
+  {
+    list_of_dts <- lapply(sampling, populate_IDs, check_date = '01012008', end_date = '01012021')
+    calendar_file_use <- Reduce(rbind, list_of_dts)
+  }  
+)
+
+
+object.size(calendar_file_use)
 
 
 write_csv(calendar_file_use, "calendar_file_use.csv")
