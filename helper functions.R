@@ -14,18 +14,21 @@ library("lubridate")
 library("fastDummies")
 library("ggplot2")
 library("readr")
-
-
+library("foreach")
+library("doParallel")
 
 
 # Loading data ------------------------------------------------------------
-
+system_info <- Sys.info()
 # Brian's Path
 #encripted_drive_path <- "/Volumes/Untitled/PA DOC/"
 # Neil's PC
-#encripted_drive_path <- "C:/Users/silveus/Documents/Data/PA DOC/"
+if (system_info["nodename"]=="SILVEUS01538KH"){
+  encripted_drive_path <- "A:/PA DOC/"
 # Neil's MAC
-encripted_drive_path <- "/Users/silveus/Documents/Data/PA DOC/"
+}else if (system_info["nodename"]=="Neil-Silveuss-MacBook-Air.local"){
+  encripted_drive_path <- "/Volumes/Encrypted/PA DOC/"
+}
 
 setwd(encripted_drive_path)
 
@@ -344,7 +347,11 @@ get_facility_type <- function(loc) {
     filter(center_code == loc) %>% 
     pull(facility)
   
-  if(str_detect(facility, 'CCC')) {
+  if(length(facility)==0){
+    return("UNKOWN")
+  }
+  
+  else if(str_detect(facility, 'CCC')) {
     return('CCC')
   }
   else {
@@ -356,7 +363,12 @@ get_facility_region <- function(loc) {
   reg_code <- unique_facilities %>% 
     filter(center_code == loc) %>% 
     pull(region_code)
+  if(length(reg_code)==0){
+    return("UNKOWN")
+  }
+  else{
   return(reg_code)
+  }
 }
 
 
