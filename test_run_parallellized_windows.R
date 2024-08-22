@@ -236,41 +236,41 @@ if (exists("main_df_complete")==0) {
   print("main_df_complete already exists")
 }
 
-get_comparisons <- function(dataset){
-  return(dataset %>% 
-           group_by(loc, m_yr) %>% 
-           summarize(
-             avg_lsir = mean(lsir, na.rm = TRUE),
-             avg_age = mean(age, na.rm = TRUE),
-             perc_black = round(mean(race == 'BLACK') * 100, 3), 
-             perc_male = round(mean(sex == 'MALE') * 100, 3),
-             pop_count = n(),
-             facility_type = first(facility_type), 
-             facility_region = first(facility_region),  
-             across(starts_with("facility_type_"), first),  
-             across(starts_with("facility_region_"), first))
-  )
-}
-
-system.time({
-  main_comparison_df <- parLapply(cl,main_df_complete,get_comparisons)
-})
-saveRDS(main_comparison_df,"C:/Users/silveus/Documents/PA DOC/intermediate data/main_comparison_df.rds")
-print("Function 4 Complete")
-# main_comparison_df <- main_df_complete %>% 
-#   group_by(loc, m_yr) %>% 
-#   summarize(
-#     avg_lsir = mean(lsir, na.rm = TRUE),
-#     avg_age = mean(age, na.rm = TRUE),
-#     perc_black = round(mean(race == 'BLACK') * 100, 3), 
-#     perc_male = round(mean(sex == 'MALE') * 100, 3),
-#     pop_count = n(),
-#     facility_type = first(facility_type), 
-#     facility_region = first(facility_region),  
-#     across(starts_with("facility_type_"), first),  
-#     across(starts_with("facility_region_"), first)
+# get_comparisons <- function(dataset){
+#   return(dataset %>% 
+#            group_by(loc, m_yr) %>% 
+#            summarize(
+#              avg_lsir = mean(lsir, na.rm = TRUE),
+#              avg_age = mean(age, na.rm = TRUE),
+#              perc_black = round(mean(race == 'BLACK') * 100, 3), 
+#              perc_male = round(mean(sex == 'MALE') * 100, 3),
+#              pop_count = n(),
+#              facility_type = first(facility_type), 
+#              facility_region = first(facility_region),  
+#              across(starts_with("facility_type_"), first),  
+#              across(starts_with("facility_region_"), first))
 #   )
+# }
+# 
+# system.time({
+#   main_comparison_df <- parLapply(cl,main_df_complete,get_comparisons)
+# })
+# saveRDS(main_comparison_df,"C:/Users/silveus/Documents/PA DOC/intermediate data/main_comparison_df.rds")
 # print("Function 4 Complete")
+main_comparison_df <- main_df_complete %>%
+  group_by(loc, m_yr) %>%
+  summarize(
+    avg_lsir = mean(lsir, na.rm = TRUE),
+    avg_age = mean(age, na.rm = TRUE),
+    perc_black = round(mean(race == 'BLACK') * 100, 3),
+    perc_male = round(mean(sex == 'MALE') * 100, 3),
+    pop_count = n(),
+    facility_type = first(facility_type),
+    facility_region = first(facility_region),
+    across(starts_with("facility_type_"), first),
+    across(starts_with("facility_region_"), first)
+  )
+print("Function 4 Complete")
 
 
 main_comparison_summary <- main_comparison_df %>% 
