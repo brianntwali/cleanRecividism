@@ -1,4 +1,4 @@
-
+library("fuzzyjoin")
 library("multidplyr")
 library("furrr")
 
@@ -532,7 +532,36 @@ daily_facilities_df <- daily_facilities_df %>%
 
 write_csv(daily_facilities_df, "add_addresses.csv")
 
+View(daily_facilities_df)
 
+
+county_fips <- read_csv(paste0(dropbox_drive_path, "FipsCountyCodes.csv"))
+
+
+
+county_fips <- county_fips %>% 
+  mutate(
+    County = sub("^[A-Z]{2}, \\s*","", Name)
+  ) %>% 
+  filter(substring(Name, 1, 2) == "PA")
+
+View(county_fips)
+
+# Pulling in updates facilities with manually entered addresses
+
+
+full_county_data <- read_excel(paste0(dropbox_drive_path, "add_addresses_updated.xlsx"))
+
+
+full_county_data <- regex_left_join(full_county_data, county_fips, by = "County", ignore_case = TRUE)
+
+
+full_county_data <- full_county_data %>% 
+  select(!c("Note", "Name.y", "County.y")) %>% 
+  relocate("FIPS", .before = "County.x") %>% 
+  rename(countyfip = FIPS)
+
+View(full_county_data)
 
 county_dt <- read_dta(paste0(dropbox_drive_path, "Secondary Data/county_characteristics.dta"))
 
@@ -540,8 +569,33 @@ View(county_dt)
 
 names(county_dt)
 
-county_dt <- county_dt %>% 
-  select(year, countyfip, )
+county_characteristics <- county_dt %>% 
+  filter(stname == "Pennsylvania") %>% 
+  select(year, ctyname, geoname, countyfip, tot_pop0, tot_male0, tot_female0, wa_tot, ba_tot, ia_tot, aa_tot, na_tot, tom_tot, region, statefip, total_employ_, construction_employ_, manufacturing_employ_, food_service_employ_, support_employ_, share_friendly_ind_, transfers, countyname, unemployrte, percap_income, cpopcrim, viol_reported, property_reported, rent50_0bed)
+
+
+View(county_characteristics)
+
+# # Convert both columns to character type
+# full_county_data$countyfip <- as.character(full_county_data$countyfip)
+# county_characteristics$countyfip <- as.character(county_characteristics$countyfip)
+# 
+# # Perform the join again
+# full_county_data <- left_join(full_county_data, county_characteristics, by = "countyfip")
+
+
+
+# Creating csv for shapefile
+
+census_input <- full_county_data %>% 
+  select(Street_address, City, State, Zip_Code) %>% 
+  filter(row_number() <= 70) %>% 
+  filter(!(row_number() == 1)) 
+  
+
+View(census_input)
+
+write_csv(census_input, "census_input.csv", row)
 
 # Creating raw data flow --------------------------------------------------
 
