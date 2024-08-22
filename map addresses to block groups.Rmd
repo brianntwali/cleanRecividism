@@ -1,0 +1,63 @@
+---
+title: "Map facility addresses to block groups"
+output: html_document
+date: "2024-08-22"
+---
+
+```{r}
+install.packages("sf")
+install.packages("dplyr")
+```
+
+```{r}
+system_info <- Sys.info()
+# Brian's Path
+#dropbox_path <- "/Volumes/Untitled/PA DOC/"
+# Neil's PC
+if (system_info["nodename"]=="SILVEUS01538KH"){
+  dropbox_path <- "C:/Users/silveus/Dropbox/Ntwali Silveus Shared/"
+# Neil's MAC
+}else if (system_info["nodename"]=="Neil-Silveuss-MacBook-Air.local"){
+  dropbox_path <- "/Dropbox/Ntwali Silveus Shared/"
+}
+```
+
+
+Load the Census Block Group Shapefile
+```{r}
+# Load the Census Block Groups shapefile
+block_groups <- st_read(paste0(dropbox_path,"Secondary Data/PA block groups/tl_2010_42_bg00.shp"))
+
+# Ensure the CRS is correct (usually EPSG:4269 for US Census data, but it might vary)
+block_groups <- st_transform(block_groups, crs = 4269)
+```
+
+Load Your CSV with Coordinates
+
+```{r}
+# Load the CSV file
+df <- read.csv("path_to_address_csv_file.csv")
+
+# Assuming the CSV has columns 'longitude', 'latitude', and 'id'
+# Create a sf object with your points
+points <- st_as_sf(df, coords = c("longitude", "latitude"), crs = 4269, agr = "constant")
+```
+
+Spatial Join to Match Coordinates to Census Block Groups
+```{r}
+# Perform a spatial join to match points to block groups
+matched <- st_join(points, block_groups, join = st_within)
+
+# This will add columns from the block_groups sf object to the points sf object
+```
+
+Inspect the Results
+```{r}
+# Display the first few rows to check the results
+head(matched)
+
+# Optionally, save the results to a new CSV
+st_write(matched, "matched_facilities_with_block_groups.csv", layer_options = "GEOMETRY=AS_XY")
+```
+
+
