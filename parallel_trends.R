@@ -14,6 +14,10 @@ library("ggplot2")
 library("readr")
 library("haven")
 
+# This R file reads created calendar file, transforms it into panel dataset 
+# with appropriate dummies, created full_county_data (it remains to link this to
+# the county_dt) and also creates a panel dataset of individual arrivals and 
+# a raw data flow of avg_lsir and race
 
 # Loading data ------------------------------------------------------------
 
@@ -37,18 +41,14 @@ sentencing <- read_xlsx(paste0(encripted_drive_path,"2021-22_Silveus_deidentifie
 
 # importing calendar file
 
-individual_daily_data <- readRDS("/Volumes/Untitled/intermediate data/Main files/main_complete_df.rds")
-individual_daily_data$m_yr<- mdy(individual_daily_data$m_yr) 
-individual_daily_data <- individual_daily_data %>% 
+calendar_individual_daily_data <- readRDS("/Volumes/Untitled/intermediate data/Main files/main_complete_df.rds")
+calendar_individual_daily_data$m_yr<- mdy(calendar_individual_daily_data$m_yr) 
+calendar_individual_daily_data <- calendar_individual_daily_data %>% 
   relocate(c(ID, loc), .before = 1) %>% 
   # spelling error 
   filter(facility_type != "UNKOWN") %>% 
   rename(month_year = m_yr) %>% 
   arrange(ID, month_year)
-
-
-View(individual_daily_data)
-
 
 
 # Define the cluster
@@ -58,48 +58,15 @@ cluster <- new_cluster(parallel::detectCores() - 2)
 cluster_library(cluster, c('tidyverse', 'furrr'))
 
 # Copy required objects to each worker
-# ADD:'get_facility_region'
-cluster_copy(cluster, c('get_program', 'save_intermediate_date', 'get_age', 'get_lsir', 'get_race', 'get_sex', 'get_facility_type', 'get_offense_code', 'ccc_moves', 'demographics', 'lsir', 'individual_daily_data', 'unique_facilities_df', 'sentencing_df'))
+cluster_copy(cluster, c('get_program', 'save_intermediate_date', 'get_age', 'get_lsir', 'get_race', 'get_sex', 'get_facility_type', 'get_offense_code', 'ccc_moves', 'demographics', 'lsir', 'calendar_individual_daily_data', 'unique_facilities_df', 'sentencing_df'))
 
 
+# Creating helper functions  ----------------------------------------
 
-# Select columns and drop duplicates by control number status code, and date. 
-# Sometimes there are multiple entry records if the resident is enrolled in multiple programs.
-
-sentencing_df <- sentencing %>% 
-  mutate(
-    sentence_date = as.Date(sentence_date, format = '%Y%m%d')
-  ) %>% 
-  arrange(control_number, sentence_date)
-
-
-
-# Creating individual ARRIVAL data ----------------------------------------
-
-
-
-new_arrivals <- ccc_moves %>% 
-  distinct(movement_id, .keep_all = TRUE) %>% 
-
-  filter(status_code %in% c('INRS', 'TRRC')) %>% 
-  select(c('control_number','status_date', 'location' = 'location_from_code'))
-
-unique_fac_codes <- ccc_cohort %>% 
-  distinct(center_code, .keep_all = TRUE) %>% 
-  pull(center_code)
-
-INRS_codes <- new_arrivals %>% 
-  distinct(location, .keep_all = TRUE) %>% 
-  pull(location)
-
-# There are 23 codes missing from ccc_cohort that are in ccc_moves rows with INRS
-
-disjointed <- setdiff(INRS_codes, unique_fac_codes)
 
 unique_facilities_df <- ccc_cohort %>% 
   distinct(facility, .keep_all = TRUE) %>% 
   select(center_code, facility, region_code)
-
 
 get_facility_type <- function(loc) {
 facility <- unique_facilities_df %>% 
@@ -113,7 +80,6 @@ facility <- unique_facilities_df %>%
     return('CCF')
   }
 }
-
 
 get_lsir <- function(id, current_date) {
   form_current_date <- as.Date(current_date, format = '%Y-%m-%d')
@@ -129,7 +95,6 @@ get_lsir <- function(id, current_date) {
     return(NA)
   }
 }
-
 
 get_race <- function(id) {
   id_race <- demographics %>% 
@@ -158,7 +123,6 @@ get_age <- function(id, current_date) {
   return(age_in_years)
 }
 
-
 get_program <- function(id, current_date) {
   form_current_date <- as.Date(strptime(current_date, format = '%Y-%m-%d'))
   
@@ -186,9 +150,12 @@ get_program <- function(id, current_date) {
   }
 }
 
-View(ccc_moves %>% 
-       filter(year(status_date) >= 2008) %>% 
-       arrange(control_number, status_date, movement_id))
+sentencing_df <- sentencing %>% 
+  mutate(
+    sentence_date = as.Date(sentence_date, format = '%Y%m%d')
+  ) %>% 
+  arrange(control_number, sentence_date)
+
 
 get_offense_code <- function(id, current_date) {
   form_current_date <- as.Date(strptime(current_date, format = '%Y-%m-%d'))
@@ -203,52 +170,10 @@ get_offense_code <- function(id, current_date) {
   return(offense_code)
 }
 
-# Filling new entrance dataframe ------------------------------------------
-
-new_arrivals_filled <- new_arrivals %>%
-  filter(!(location %in% disjointed)) %>% 
-  rowwise() %>%
-  partition(cluster) %>% 
-  mutate(
-    lsir = get_lsir(control_number, status_date),
-    facility_type = get_facility_type(location),
-    race = get_race(control_number),
-    age = get_age(control_number, status_date),
-    sex = get_sex(control_number),
-    month = month.abb[month(status_date)],
-    offense_code = get_offense_code(control_number, status_date),
-    programs = list(get_program(control_number, status_date))
-  )  %>%
-  ungroup() %>% 
-  collect()
-
-new_arrivals_unnested <- new_arrivals_filled %>% 
-  unnest(programs)
-
-write.csv(new_arrivals_unnested, "arrivals_trends.csv")
-
-View(new_arrivals_unnested)
-
-saved_arrivals <- read.csv("arrivals_trends.csv", colClasses = c("control_number" = "character"))
-
-saved_arrivals <- saved_arrivals[, -1] %>% 
-  mutate(status_date = ymd(status_date))
-
-View(saved_arrivals)
-
-arrivals_floored <- saved_arrivals %>% 
-  mutate(
-    month_year = floor_date(status_date, unit = 'month')
-  ) %>% 
-  filter(year(month_year) > 2007 & year(month_year) < 2021)
-
-View(arrivals_floored)
-
-
-
-# 1 month (1), 2 months (2), 1 quarter (3), 6 months (6), 1 year (12), 2 years (24)
+# Dynamically set period to 1 month (1), 2 months (2), 1 quarter (3), 
+# 6 months (6), 1 year (12), or 2 years (24)
 set_period <- function(input_df, input_period) {
-input_df <- input_df %>%
+  input_df <- input_df %>%
     mutate(
       period_group = case_when(
         input_period == 2 ~ cut.Date(as.Date(month_year, format = '%Y-%m-%d'), breaks = "2 months", labels = FALSE),
@@ -265,150 +190,27 @@ input_df <- input_df %>%
 }
 
 
-create_program_count <- function(df, period_set) {
-  binned_df <- df %>%
-    mutate(
-      period_group = case_when(
-        period_set == 1 ~ cut.Date(as.Date(month_year, format = '%Y-%m-%d'), breaks = "1 month", labels = FALSE),
-        period_set == 3 ~ cut.Date(as.Date(month_year, format = '%Y-%m-%d'), breaks = "3 months", labels = FALSE)
-      ) 
-    ) 
-  
-  dummy_df <- dummy_cols(binned_df, select_columns = 'programs', remove_first_dummy = FALSE)
-  
-  start_date <- as.Date("2008-01-01") 
-  dummy_df <- dummy_df %>%
-    arrange(period_group) %>%
-    mutate(
-      period_group = start_date + months((period_group - 1) * period_set)
-    ) %>%
-    group_by(period_group, location, facility_type) %>% 
-    summarise(
-      count = n(),
-      avg_lsir = mean(lsir, na.rm = TRUE),
-      count_black = sum(race == 'BLACK'),
-      avg_age = mean(age, na.rm = TRUE),
-      perc_male = round(mean(sex == 'MALE') * 100, 3),
-      drug_offenses = sum(offense_code == 'Drugs', na.rm = TRUE),
-      violent_offenses = sum(offense_code %in% c('Part I Violent', 'Other Violent')),
-      property_offenses = sum(offense_code == 'Property', na.rm = TRUE),
-      across(starts_with("programs_"), ~ sum(.x, na.rm = TRUE))
-    ) %>% 
-    relocate(location, .before = period_group) %>% 
-    # rename(period_group = case_when(
-    #   period_set == 1 ~ month,
-    #   period_set == 3 ~ quarter
-    # )) %>% 
-    as.data.frame()
-  return(dummy_df)
-}
+# Filling calendar and new entrance dataframes ------------------------------------------
 
-create_indiv_program_count <- function(df, period_set) {
-  binned_df <- df %>%
-    mutate(
-      period_group = case_when(
-        period_set == 1 ~ cut.Date(as.Date(month_year, format = '%Y-%m-%d'), breaks = "1 month", labels = FALSE),
-        period_set == 3 ~ cut.Date(as.Date(month_year, format = '%Y-%m-%d'), breaks = "3 months", labels = FALSE)
-      ) 
-    ) 
-  dummy_df <- dummy_cols(binned_df, select_columns = 'programs', remove_first_dummy = FALSE)
-  start_date <- as.Date("2008-01-01") 
-  dummy_df <- dummy_df %>%
-    arrange(period_group) %>%
-    mutate(
-      period_group = start_date + months((period_group - 1) * period_set),
-      year = year(period_group),
-      quarter = quarter(period_group)
-    ) %>%
-    distinct(period_group, control_number, .keep_all = TRUE) %>%
-    group_by(period_group, year, quarter, control_number, location, facility_type) %>% 
-    summarise(
-      count = n(),
-      avg_lsir = mean(lsir, na.rm = TRUE),
-      count_black = sum(race == 'BLACK'),
-      avg_age = mean(age, na.rm = TRUE),
-      perc_male = round(mean(sex == 'MALE') * 100, 3),
-      drug_offenses = sum(offense_code == 'Drugs', na.rm = TRUE),
-      violent_offenses = sum(offense_code %in% c('Part I Violent', 'Other Violent')),
-      property_offenses = sum(offense_code == 'Property', na.rm = TRUE),
-      across(starts_with("programs_"), ~ sum(.x, na.rm = TRUE))
-    ) %>% 
-    relocate(location, .before = period_group) %>% 
-    relocate(control_number, .before = location) %>% 
-    # rename(period_group = case_when(
-    #   period_set == 1 ~ month,
-    #   period_set == 3 ~ quarter
-    # )) %>% 
-    as.data.frame()
-  return(dummy_df)
-}
+unique_fac_codes <- ccc_cohort %>% 
+  distinct(center_code, .keep_all = TRUE) %>% 
+  pull(center_code)
+
+new_arrivals <- ccc_moves %>% 
+  distinct(movement_id, .keep_all = TRUE) %>% 
+  filter(status_code %in% c('INRS', 'TRRC')) %>% 
+  select(c('control_number','status_date', 'location' = 'location_from_code'))
+
+INRS_codes <- new_arrivals %>% 
+  distinct(location, .keep_all = TRUE) %>% 
+  pull(location)
+
+# There are 23 codes missing from ccc_cohort that are in ccc_moves rows with INRS
 
 
-save_individual_dataframe <- function(input_df, input_period_set) {
-   created_df <- create_indiv_program_count(df = input_df, period_set = input_period_set)
-   created_df <- dummy_cols(created_df, 'facility_type', remove_first_dummy = TRUE, remove_selected_columns = TRUE)
-   created_df <- created_df %>% 
-     mutate(
-       post_2013 = ifelse(year(period_group) >= 2013, 1, 0), 
-       .after = period_group
-     ) %>% 
-     relocate(facility_type_CCF, .before = count)
-   
-   df_period = case_when(
-     input_period_set == 1 ~ "month",
-     input_period_set == 3 ~ "quarter",
-   )
+# Creating main dataframe from calendar file ------------------------------
 
-   write.csv(created_df, (paste0("individual_per_", df_period, ".csv")))
-}
-
-
-get_individual_quarter <- save_individual_dataframe(arrivals_floored, 3)
-
-get_individual_month <- save_individual_dataframe(arrivals_floored, 1)
-
-
-
-# Make this less redundant 
-
-
-monthly_programs <- create_program_count(arrivals_floored, 1)
-
-quarter_programs <- create_program_count(arrivals_floored, 3)
-
-monthly_programs <- dummy_cols(monthly_programs, 'facility_type', remove_first_dummy = TRUE, remove_selected_columns = TRUE)
-
-quarter_programs <- dummy_cols(quarter_programs, 'facility_type', remove_first_dummy = TRUE, remove_selected_columns = TRUE)
-
-
-monthly_programs <- monthly_programs %>% 
-  mutate(
-    # Using month_year might be more clear 
-    post_2013 = ifelse(year(period_group) >= 2013, 1, 0), 
-    .after = period_group
-  ) %>% 
-  relocate(facility_type_CCF, .before = count)
-
-View(monthly_programs)
-
-
-quarter_programs <- quarter_programs %>% 
-  mutate(
-    # Using month_year might be more clear 
-    post_2013 = ifelse(year(period_group) >= 2013, 1, 0), 
-    .after = period_group
-  ) %>% 
-  relocate(facility_type_CCF, .before = count)
-
-View(quarter_programs)
-
-
-
-
-# Filling individual daily dataframe --------------------------------------
-
-
-View(individual_daily_data)
+View(calendar_individual_daily_data)
 
 save_intermediate_date <- function(df) {
   df <- df %>%
@@ -424,7 +226,7 @@ save_intermediate_date <- function(df) {
   return(df)
 }
 
-returned_intermediate_data <- save_intermediate_date(individual_daily_data)
+returned_intermediate_data <- save_intermediate_date(calendar_individual_daily_data)
 
 returned_intermediate_data <- returned_intermediate_data %>%
   unnest(programs) 
@@ -471,14 +273,9 @@ create_daily_var_counts <- function(df, period_set) {
     relocate(loc, .before = period_group) %>%
     relocate(ID, .before = loc) %>%
     rename(location = loc) %>%
-    # rename(period_group = case_when(
-    #   period_set == 1 ~ month,
-    #   period_set == 3 ~ quarter
-    # )) %>%
     as.data.frame()
   return(dummy_df)
 }
-
 
 save_complete_daily_df <- function(input_df, input_period_set) {
   created_df <- create_daily_var_counts(df = input_df, period_set = input_period_set)
@@ -489,12 +286,12 @@ save_complete_daily_df <- function(input_df, input_period_set) {
       .after = period_group
     ) %>%
     relocate(facility_type_CCF, .before = count)
-
+  
   df_period = case_when(
     input_period_set == 1 ~ "month",
     input_period_set == 3 ~ "quarter",
   )
-
+  
   write_rds(created_df, (paste0("daily_data_per_", df_period, ".rds")))
   return(created_df)
 }
@@ -502,14 +299,10 @@ save_complete_daily_df <- function(input_df, input_period_set) {
 get_daily_data_month <- save_complete_daily_df(returned_intermediate_data, 1)
 get_daily_data_quarter <- save_complete_daily_df(returned_intermediate_data, 3)
 
-# Should I make sure that month-year is included 
-View(get_daily_data_quarter %>%  arrange(ID, period_group))
-
-
-# Add county level characteristics ----------------------------------------
+# Adding county level characteristics to calendar panel dataset ----------------------------------------
 
 daily_facilities_df <- get_daily_data_month %>% 
-       distinct(location)
+  distinct(location)
 
 facilities_data <- readRDS(paste0(dropbox_drive_path, "cleanRecividism/unique_facilities_list.rds"))
 
@@ -524,20 +317,15 @@ daily_facilities_df <- left_join(daily_facilities_df, facilities_data, by = "loc
 
 daily_facilities_df <- daily_facilities_df %>% 
   mutate(facility = substring(facility, 5, nchar(facility)))
-  
+
 daily_facilities_df <- left_join(daily_facilities_df, facilities_name_pop, by = "location")
 
 daily_facilities_df <- daily_facilities_df %>% 
   arrange(City)
 
-write_csv(daily_facilities_df, "add_addresses.csv")
-
-View(daily_facilities_df)
-
+# write_csv(daily_facilities_df, "add_addresses.csv")
 
 county_fips <- read_csv(paste0(dropbox_drive_path, "FipsCountyCodes.csv"))
-
-
 
 county_fips <- county_fips %>% 
   mutate(
@@ -549,12 +337,9 @@ View(county_fips)
 
 # Pulling in updates facilities with manually entered addresses
 
-
 full_county_data <- read_excel(paste0(dropbox_drive_path, "add_addresses_updated.xlsx"))
 
-
 full_county_data <- regex_left_join(full_county_data, county_fips, by = "County", ignore_case = TRUE)
-
 
 full_county_data <- full_county_data %>% 
   select(!c("Note", "Name.y", "County.y")) %>% 
@@ -574,7 +359,6 @@ county_characteristics <- county_dt %>%
   select(year, ctyname, geoname, countyfip, tot_pop0, tot_male0, tot_female0, wa_tot, ba_tot, ia_tot, aa_tot, na_tot, tom_tot, region, statefip, total_employ_, construction_employ_, manufacturing_employ_, food_service_employ_, support_employ_, share_friendly_ind_, transfers, countyname, unemployrte, percap_income, cpopcrim, viol_reported, property_reported, rent50_0bed)
 
 
-View(county_characteristics)
 
 # # Convert both columns to character type
 # full_county_data$countyfip <- as.character(full_county_data$countyfip)
@@ -585,17 +369,108 @@ View(county_characteristics)
 
 
 
-# Creating csv for shapefile
 
-census_input <- full_county_data %>% 
-  select(Street_address, City, State, Zip_Code) %>% 
-  filter(row_number() <= 70) %>% 
-  filter(!(row_number() == 1)) 
+
+# Creating individual level arrivals dataframe---------------------------------------------------------------
+
+
+disjointed <- setdiff(INRS_codes, unique_fac_codes)
+
+new_arrivals_filled <- new_arrivals %>%
+  filter(!(location %in% disjointed)) %>% 
+  rowwise() %>%
+  partition(cluster) %>% 
+  mutate(
+    lsir = get_lsir(control_number, status_date),
+    facility_type = get_facility_type(location),
+    race = get_race(control_number),
+    age = get_age(control_number, status_date),
+    sex = get_sex(control_number),
+    month = month.abb[month(status_date)],
+    offense_code = get_offense_code(control_number, status_date),
+    programs = list(get_program(control_number, status_date))
+  )  %>%
+  ungroup() %>% 
+  collect()
+
+# "unpivot" programs column
+new_arrivals_unnested <- new_arrivals_filled %>% 
+  unnest(programs)
+
+write.csv(new_arrivals_unnested, "arrivals_trends.csv")
+
+saved_arrivals <- read.csv("arrivals_trends.csv", colClasses = c("control_number" = "character"))
+
+saved_arrivals <- saved_arrivals[, -1] %>% 
+  mutate(status_date = ymd(status_date))
+
+arrivals_floored <- saved_arrivals %>% 
+  mutate(
+    month_year = floor_date(status_date, unit = 'month')
+  ) %>% 
+  filter(year(month_year) > 2007 & year(month_year) < 2021)
+
+# For individual entrance file data
+create_indiv_arrival_count <- function(df, period_set) {
+  binned_df <- df %>%
+    mutate(
+      period_group = case_when(
+        period_set == 1 ~ cut.Date(as.Date(month_year, format = '%Y-%m-%d'), breaks = "1 month", labels = FALSE),
+        period_set == 3 ~ cut.Date(as.Date(month_year, format = '%Y-%m-%d'), breaks = "3 months", labels = FALSE)
+      ) 
+    ) 
+  dummy_df <- dummy_cols(binned_df, select_columns = 'programs', remove_first_dummy = FALSE)
+  start_date <- as.Date("2008-01-01") 
+  dummy_df <- dummy_df %>%
+    arrange(period_group) %>%
+    mutate(
+      period_group = start_date + months((period_group - 1) * period_set),
+      year = year(period_group),
+      quarter = quarter(period_group)
+    ) %>%
+    distinct(period_group, control_number, .keep_all = TRUE) %>%
+    group_by(period_group, year, quarter, control_number, location, facility_type) %>% 
+    summarise(
+      count = n(),
+      avg_lsir = mean(lsir, na.rm = TRUE),
+      count_black = sum(race == 'BLACK'),
+      avg_age = mean(age, na.rm = TRUE),
+      perc_male = round(mean(sex == 'MALE') * 100, 3),
+      drug_offenses = sum(offense_code == 'Drugs', na.rm = TRUE),
+      violent_offenses = sum(offense_code %in% c('Part I Violent', 'Other Violent')),
+      property_offenses = sum(offense_code == 'Property', na.rm = TRUE),
+      across(starts_with("programs_"), ~ sum(.x, na.rm = TRUE))
+    ) %>% 
+    relocate(location, .before = period_group) %>% 
+    relocate(control_number, .before = location) %>% 
+    as.data.frame()
+  return(dummy_df)
+}
+
+
+save_individual_arrivals_dataframe <- function(input_df, input_period_set) {
+  created_df <- create_indiv_arrival_count(df = input_df, period_set = input_period_set)
+  created_df <- dummy_cols(created_df, 'facility_type', remove_first_dummy = TRUE, remove_selected_columns = TRUE)
+  created_df <- created_df %>% 
+    mutate(
+      post_2013 = ifelse(year(period_group) >= 2013, 1, 0), 
+      .after = period_group
+    ) %>% 
+    relocate(facility_type_CCF, .before = count)
   
+  df_period = case_when(
+    input_period_set == 1 ~ "month",
+    input_period_set == 3 ~ "quarter",
+  )
+  write.csv(created_df, (paste0("individual_arrivals_per_", df_period, ".csv")))
+}
 
-View(census_input)
 
-write_csv(census_input, "census_input.csv", row)
+get_individual_arrivals_quarter <- save_individual_arrivals_dataframe(arrivals_floored, 3)
+
+get_individual_arrivals_month <- save_individual_arrivals_dataframe(arrivals_floored, 1)
+
+
 
 # Creating raw data flow --------------------------------------------------
 
@@ -663,34 +538,17 @@ create_variable_flow <- function(df, period_set, var_name) {
 
 # Adding Offenses
 
-View(unique_offenses <- sentencing %>% 
-  distinct(asca_category))
 
-count_offenses <- sentencing %>% 
-  group_by(asca_category) %>% 
-  summarise(
-    count = n()
-  ) 
+# count_offenses <- sentencing %>% 
+#   group_by(asca_category) %>% 
+#   summarise(
+#     count = n()
+#   ) 
+# 
+# View(count_offenses)
 
-View(count_offenses)
-
-# 1519 instances, I should check other 'false' sentencing
+# 1519 instances of 'fake' sentencing
 nrow(sentencing %>% 
        filter(min_expir_date == '00000000'))
-
-sentencing_df <- sentencing %>% 
-  mutate(
-    sentence_date = as.Date(sentence_date, format = '%Y%m%d')
-  ) %>% 
-  arrange(control_number, sentence_date)
-
-View(sentencing_df %>% 
-       filter(asca_category == "Part I Violent"))
-
-View(ccc_moves %>% 
-       filter(control_number == '001165') %>% 
-       arrange(status_date, movement_id))
-
-# Gauge the magnitude 
 
 
