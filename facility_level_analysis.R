@@ -118,14 +118,9 @@ pop_m_yr_df <- function(og_cal_file) {
   return(m_yr_df)
 }
 
-# run main function
-m_yr_df <- pop_m_yr_df(calendar_file[1:10,])
-View(m_yr_df)
 
 
-
-
-# Functions to add data ---------------------------------------------------
+# Helper Functions to add data ---------------------------------------------------
 
 get_age <- function(id, current_date) {
   form_current_date <- as.Date(strptime(current_date, format = '%m%d%Y'))
@@ -195,10 +190,6 @@ get_facility_region <- function(loc) {
   return(reg_code)
 }
 
-
-
-# I am unsure if this will all work well if the dates are alreay floored 
-
 unique_programs <- ccc_moves %>% 
   distinct(program_code) %>% 
   filter(!is.na(program_code) & !(program_code == 'NULL')) %>% 
@@ -225,23 +216,15 @@ get_program <- function(id, current_date) {
     
     return(all_programs)
   } 
-  # add condition for when program is associated with unique movement id
-  
   else {
     return(character(0)) 
     }
 }
 
 # Test
-print(get_program('001165', '10042005'))
-print(get_program('004042', '12162010'))
-print(get_program('004042', '19162010'))
-
-
-View(ccc_moves %>% 
-       filter(control_number == '001165') %>% 
-       arrange(status_date, movement_id) %>% 
-       select(control_number, status_date, movement_id, program_code, program_description, status_code)) 
+# print(get_program('001165', '10042005'))
+# print(get_program('004042', '12162010'))
+# print(get_program('004042', '19162010'))
 
 
 # Adding further data to df -----------------------------------------------
@@ -373,11 +356,8 @@ write.csv(facility_analysis, "working_facility_file.csv")
 View(facility_analysis)
 
 # check if the count is higher during certain months
+
 # add count per facility
 
-
-
-
-# not using rowwise() produces inaccurate results
 
 

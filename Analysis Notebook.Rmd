@@ -17,7 +17,7 @@ library(htmltools)
 library(broom)
 library(lubridate)
 library(fixest)
-
+```
 
 
 
@@ -39,31 +39,26 @@ analysis_datapath <- paste0(encripted_drive_path,"intermediate data/")
 
 
 ```
-## Build analysis with fake data
+
 ```{r}
+
+# Loading Calendar Data
 
 daily_individual_reg_data_quarter <- readRDS("daily_data_per_quarter.RDS")
 
 daily_individual_reg_data_month <- readRDS("daily_data_per_month.RDS")
 
-View(daily_individual_reg_data)
+View(daily_individual_reg_data_quarter)
 
-indiv_arrival_reg_data <-read.csv(paste0(analysis_datapath,"individual_per_quarter.csv"),
+
+
+# Loading Arrival data 
+
+quarter_indiv_arrival_reg_data <-read.csv(paste0(analysis_datapath,"individual_per_quarter.csv"),
                                    colClasses = c("control_number" = "character"))
-indiv_arrival_reg_data <- indiv_arrival_reg_data[, -1] %>% 
+quarter_indiv_arrival_reg_data <- quarter_indiv_arrival_reg_data[, -1] %>% 
   mutate(period_group = ymd(period_group)) %>% 
   ungroup()
-
-View(indiv_arrival_reg_data)
-
-individual_daily_data <- readRDS(paste0(analysis_datapath,"Main files/main_complete_df.rds"))
-individual_daily_data <- individual_daily_data %>% 
-  relocate(c(ID, loc), .before = 1) %>% 
-  # spelling error 
-  filter(facility_type != "UNKOWN")
-
-View(individual_daily_data)
-
 
 monthly_indiv_arrival_data <-read.csv(paste0(analysis_datapath,"individual_per_quarter.csv"),
                                    colClasses = c("control_number" = "character"))
@@ -71,30 +66,28 @@ monthly_indiv_arrival_data <- monthly_indiv_arrival_data[, -1] %>%
   mutate(period_group = ymd(period_group)) %>% 
   ungroup()
 
-View(monthly_indiv_arrival_data)
-# facility_arrival_reg_data <-
+# individual_daily_data <- readRDS(paste0(analysis_datapath,"Main files/main_complete_df.rds"))
+# individual_daily_data <- individual_daily_data %>% 
+#   relocate(c(ID, loc), .before = 1) %>% 
+#   # spelling error 
+#   filter(facility_type != "UNKOWN")
+# 
+# View(individual_daily_data)
+
+
 ```
 
 
-
-
-<!-- Import analysis data -->
-<!-- ```{r} -->
-<!-- indiv_arrival_reg_data <- read.csv(paste0(analysis_datapath,"FILENAME")) -->
-<!-- arrival_reg_data_facility read.csv(paste0(analysis_datapath,"FILENAME")) -->
-<!-- ``` -->
-
-
-
+# Updating variable and dataframe names is needed
 
 <!-- How do arrivals to CCFs compare to arrivals to CCCs prior to 2013? The below requires a dataset for analysis that has a dummy variable for post (>= 2013) and a dummy variable for ccf(1 if ccf, 0 if ccc). The dataset should be individual arrivals. -->
 <!-- ```{r} -->
-<!-- balancereg1 <- felm(lsir~ccf,reg_data[reg_data$post==0]) -->
-<!-- balancereg2 <- felm(black~ccf,reg_data[reg_data$post==0]) -->
-<!-- balancereg3 <- felm(age~ccf,reg_data[reg_data$post==0]) -->
-<!-- balancereg4 <- felm(drugoffence~ccf,reg_data[reg_data$post==0]) -->
-<!-- balancereg5 <- felm(violentoffence~ccf, reg_data[reg_data$post==0]) -->
-<!-- balancereg6 <- felm(arrivals <- ccf, reg_data[reg_data$post==0] %>%  -->
+<!-- balancereg1 <- felm(avg_lsir~ccf,reg_data[reg_data$post==0]) -->
+<!-- balancereg2 <- felm(count_black~ccf,reg_data[reg_data$post==0]) -->
+<!-- balancereg3 <- felm(avg_age~ccf,reg_data[reg_data$post==0]) -->
+<!-- balancereg4 <- felm(drug_offenses~ccf,reg_data[reg_data$post==0]) -->
+<!-- balancereg5 <- felm(violent_offenses~ccf, reg_data[reg_data$post==0]) -->
+<!-- balancereg6 <- felm(count <- ccf, reg_data[reg_data$post==0] %>%  -->
 <!--                                                 group_by(loc,month) %>%  -->
 <!--                                                 summarise(arrivals=n()), -->
 <!--                                                           ccf=first(ccf), -->
@@ -220,7 +213,6 @@ coef_df <- data.frame(
 coef_df <- coef_df %>%
     filter(grepl("CCF", term) & grepl("period_factor", term))
 
-# View(coef_df)
 
 #Manually add omitted coefficient
 ref_coeff <- data.frame(
@@ -247,13 +239,6 @@ coef_df <- coef_df %>%
   arrange(term)
 
 
-View(coef_df)
-
-daily_individual_reg_data_quarter
-# 
-# pattern <- "_[a=z]"
-# extracted_label <- gregexpr(pattern, toString(data), value = TRUE)
-
 # Plot the coefficients
 ggplot(coef_df, aes(x = term, y = estimate)) +
   geom_point() +
@@ -276,8 +261,6 @@ post_period_num=14
 outcome_variable <- 'avg_lsir'
 #define treatment date MMDDYYY
 treatment_date <- "07012013"
-
-
 
 ```
 
