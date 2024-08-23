@@ -133,18 +133,12 @@ check_mov_IDs <- function(dt_input, check_date) {
   mov_IDs <- dt_input[(status_date == as.Date(strptime(check_date, format = '%m%d%Y'))), movement_id]
 }
 
-
-
 # Test for function
 # print(check_mov_IDs('003636', '10042012'))
 # print(check_mov_IDs('003636', '11062012'))
 
-# Questions: UDSC, "TRGH" * "PTCE" *  
-# "ESCP" * "ERR" * (714 days, 3 errors)  "TRTC" *  
+# Questions: UDSC, "TRGH", * "PTCE" *, "TRTC" *  
 
-
-
-# POSSIBLE CHANGE: passing the filtered datatable to check_status_and_ID?
 
 check_status_and_ID <- function(dt_input, check_date, mov_ID) {
   # select status of the move record with associated parameters
@@ -184,24 +178,17 @@ check_status_and_ID <- function(dt_input, check_date, mov_ID) {
   return(loc_code)
 }
 
-
 # Test for function
 # print(check_status_and_ID('003636', '10042012', '753517'))
 # print(check_status_and_ID('003636', '12262012', '767244'))
 
 # Main function
 
-
-
-
-
 populate_IDs <- function(ID, check_date, end_date) {
   tryCatch({
     created_df <- data.frame(ID = ID, stringsAsFactors = FALSE)
     row.names(created_df) <- created_df$ID
-    
-    # POSSIBLE CHANGE: adding a cc_count_ID_sort <- cc_count_ID_sort[(control_number == ID)]
-    
+  
     filtered_cc_desc <-  cc_counts_dt_sorted_desc[(control_number == ID)]
     filtered_cc_asc <-  cc_counts_dt_sorted_asc[(control_number == ID)]
     filtered_cc_ID <-  cc_counts_dt_sorted_id_desc[(control_number == ID)]
@@ -246,8 +233,6 @@ populate_IDs <- function(ID, check_date, end_date) {
 }
 
 
-
-
 # Test for main function --------------------------------------------------
 
 unique_IDs_2 <- cc_counts_df %>% 
@@ -275,10 +260,6 @@ system.time({
  })
 
 
-View(list_of_dts_2[[1]])
-View(final_dt_2)
- 
- write.csv(final_dt_2, 'attemp1.csv')
 # mclapply
 #  user  system elapsed (Jun 18th 2:50 pm)
 # 16.442   0.867   9.109 
@@ -327,14 +308,7 @@ system.time(
   }  
 )
 
-
-object.size(calendar_file_use)
-
-
 write_csv(calendar_file_use, "calendar_file_use.csv")
-
-
-View(calendar_file_use)
 
 # Set the first column as row names
 rownames(calendar_file_use) <- calendar_file_use[, 1]
@@ -360,10 +334,6 @@ get_id_m_yr_data <- function(input_id, input_cal_file, input_date) {
 
 # # Test the function
 # test_df1 <- get_id_m_yr_data('069573', calendar_file, '01142008')
-# 
-# # View the result
-# View(test_df1)
-
 
 # function to create a particular month-year's associated rows
 collect_m_yr_data <- function(m_yr_rows, ids, cal_file) {
@@ -393,5 +363,4 @@ pop_m_yr_df <- function(og_cal_file) {
 }
 
 # run main function
-test_df4 <- pop_m_yr_df(calendar_file_use)
-View(test_df4)
+# test_df4 <- pop_m_yr_df(calendar_file_use)
